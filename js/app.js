@@ -103,18 +103,33 @@
       function loadEcharts() {
         if (window.echarts) return Promise.resolve(window.echarts);
         if (!echartsPromise) {
+          var sources = [
+            'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js',
+            'https://unpkg.com/echarts@5/dist/echarts.min.js',
+          ];
           echartsPromise = new Promise(function (resolve, reject) {
-            var script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
-            script.async = true;
-            script.onload = function () {
-              if (window.echarts) resolve(window.echarts);
-              else reject(new Error('ECharts 加载失败'));
-            };
-            script.onerror = function () {
-              reject(new Error('ECharts 加载失败'));
-            };
-            document.head.appendChild(script);
+            function tryLoad(index) {
+              if (window.echarts) {
+                resolve(window.echarts);
+                return;
+              }
+              if (index >= sources.length) {
+                reject(new Error('ECharts 加载失败'));
+                return;
+              }
+              var script = document.createElement('script');
+              script.src = sources[index];
+              script.async = true;
+              script.onload = function () {
+                if (window.echarts) resolve(window.echarts);
+                else tryLoad(index + 1);
+              };
+              script.onerror = function () {
+                tryLoad(index + 1);
+              };
+              document.head.appendChild(script);
+            }
+            tryLoad(0);
           });
         }
         return echartsPromise;
@@ -1329,11 +1344,6 @@
           loading.value = false;
           return;
         }
-        if (typeof echarts === 'undefined') {
-          error.value = 'ECharts 库加载失败，请检查网络连接后刷新页面';
-          loading.value = false;
-          return;
-        }
         if (typeof window.createDataStore !== 'function') {
           error.value = 'data-store.js 加载失败，请刷新页面';
           loading.value = false;
@@ -1348,6 +1358,9 @@
           .then(function () {
             scheduleDeferredSections();
             initCharts();
+            scheduleIdle(function () {
+              loadEcharts().catch(function () {});
+            });
             window.addEventListener('resize', function () {
               if (trendChart) trendChart.resize();
               if (funnelChart) funnelChart.resize();
