@@ -39,6 +39,45 @@
     return { startIdx: startIdx, endIdx: endIdx };
   }
 
+  function filterKey(f) {
+    var accounts = f.accounts && f.accounts.length ? f.accounts.slice().sort() : [];
+    var countries = f.countries && f.countries.length ? f.countries.slice().sort() : [];
+    var optimizers = f.optimizers && f.optimizers.length ? f.optimizers.slice().sort() : [];
+    return [
+      f.dateStart || '',
+      f.dateEnd || '',
+      f.optimizer || '',
+      optimizers.join('\u0001'),
+      accounts.join('\u0001'),
+      countries.join('\u0001'),
+    ].join('\u0002');
+  }
+
+  function createBundleCache(limit) {
+    var map = new Map();
+    var order = [];
+    return {
+      get: function (key, compute) {
+        if (map.has(key)) return map.get(key);
+        var value = compute();
+        map.set(key, value);
+        order.push(key);
+        if (order.length > limit) map.delete(order.shift());
+        return value;
+      },
+      seed: function (key, value) {
+        if (map.has(key)) return;
+        map.set(key, value);
+        order.push(key);
+        if (order.length > limit) map.delete(order.shift());
+      },
+      clear: function () {
+        map.clear();
+        order.length = 0;
+      },
+    };
+  }
+
   function buildRowsByDay(store) {
     var rowsByDay = [];
     var rows = store.rows;
@@ -937,6 +976,19 @@
         return findRisingFromBundle(bundle.creativeDayMap, ld || bundle.latestDay, windowDays);
       },
       getLatestDay: function (f) { return queryBundle(store, f).latestDay; },
+    };
+    var bundleCache = createBundleCache(16);
+    var allTimeFilter = { optimizer: '', accounts: [], countries: [] };
+    var allTimeKey = filterKey(allTimeFilter);
+    var allTimeBundle = queryBundle(store, allTimeFilter);
+    bundleCache.seed(allTimeKey, allTimeBundle);
+
+    store.allTimeBundle = allTimeBundle;
+    store.clearBundleCache = function () { bundleCache.clear(); };
+    store.queryBundle = function (f) {
+      return bundleCache.get(filterKey(f), function () {
+        return queryBundle(store, f);
+      });
     };
     return store;
   }

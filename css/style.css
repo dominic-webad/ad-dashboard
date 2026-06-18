@@ -1761,3 +1761,10 @@ tr.decline:hover td {
 .auth-modal {
   width: min(420px, 100%);
 }
+
+.section-loading-hint {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}

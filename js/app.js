@@ -1,4 +1,24 @@
 (function () {
+  function showFatalError(title, message) {
+    var app = document.getElementById('app');
+    if (!app) return;
+    app.innerHTML =
+      '<div class="page"><div class="error-panel">' +
+      '<div class="error-icon">⚠️</div>' +
+      '<h2>' + title + '</h2>' +
+      '<p>' + message + '</p>' +
+      '</div></div>';
+  }
+
+  if (typeof Vue === 'undefined') {
+    showFatalError('页面加载失败', 'Vue 库加载失败，请检查网络连接后刷新页面');
+    return;
+  }
+  if (typeof window.AdUtils === 'undefined') {
+    showFatalError('页面加载失败', 'utils.js 加载失败，请刷新页面');
+    return;
+  }
+
   var U = window.AdUtils;
   var createApp = Vue.createApp;
   var ref = Vue.ref;
@@ -7,7 +27,7 @@
   var onMounted = Vue.onMounted;
   var nextTick = Vue.nextTick;
 
-  createApp({
+  var app = createApp({
     setup: function () {
       var loading = ref(true);
       var error = ref('');
@@ -37,6 +57,8 @@
       var showLoginModal = ref(false);
       var loginForm = ref({ username: '', password: '' });
       var loginError = ref('');
+      var deferredReady = ref(false);
+      var echartsPromise = null;
 
       var filters = ref({
         dateStart: '',
@@ -63,6 +85,56 @@
       var meta = computed(function () {
         return store.value && store.value.meta ? store.value.meta : {};
       });
+
+      function scheduleIdle(fn) {
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(fn, { timeout: 900 });
+        } else {
+          setTimeout(fn, 0);
+        }
+      }
+
+      function scheduleDeferredSections() {
+        scheduleIdle(function () {
+          deferredReady.value = true;
+        });
+      }
+
+      function loadEcharts() {
+        if (window.echarts) return Promise.resolve(window.echarts);
+        if (!echartsPromise) {
+          echartsPromise = new Promise(function (resolve, reject) {
+            var script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
+            script.async = true;
+            script.onload = function () {
+              if (window.echarts) resolve(window.echarts);
+              else reject(new Error('ECharts 加载失败'));
+            };
+            script.onerror = function () {
+              reject(new Error('ECharts 加载失败'));
+            };
+            document.head.appendChild(script);
+          });
+        }
+        return echartsPromise;
+      }
+
+      function getDataUrl() {
+        try {
+          var version = localStorage.getItem('ad_dashboard_data_version');
+          if (version) return './public/data.json?v=' + encodeURIComponent(version);
+        } catch (e) { /* ignore */ }
+        return './public/data.json';
+      }
+
+      function rememberDataVersion(data) {
+        try {
+          if (data && data.meta && data.meta.generatedAt) {
+            localStorage.setItem('ad_dashboard_data_version', data.meta.generatedAt);
+          }
+        } catch (e) { /* ignore */ }
+      }
 
       function dimFilter() {
         return {
@@ -193,13 +265,13 @@
       });
 
       var lifecycleBundle = computed(function () {
-        if (!store.value || !store.value.queryBundle) return null;
+        if (!deferredReady.value || !store.value || !store.value.queryBundle) return null;
         return store.value.queryBundle(lifecycleFilter());
       });
 
       var lifecycleAllTimeBundle = computed(function () {
-        if (!store.value || !store.value.queryBundle) return null;
-        return store.value.queryBundle(dimFilter());
+        if (!store.value) return null;
+        return store.value.allTimeBundle || null;
       });
 
       var lifecycleLatestDay = computed(function () {
@@ -260,7 +332,7 @@
       });
 
       var compareBundle = computed(function () {
-        if (!store.value || !store.value.queryBundle) return null;
+        if (!deferredReady.value || !store.value || !store.value.queryBundle) return null;
         return store.value.queryBundle(compareFilter());
       });
 
@@ -277,7 +349,7 @@
       });
 
       var potentialResult = computed(function () {
-        if (!store.value || !globalBundle.value) {
+        if (!deferredReady.value || !store.value || !globalBundle.value) {
           return { windowDays: headCreativeWindow.value, items: [] };
         }
         return store.value.findRisingFromBundle(
@@ -414,12 +486,20 @@
 
       function ensureProtectedCharts() {
         if (!isLoggedIn.value) return;
-        var trendEl = document.getElementById('trend-chart');
-        var funnelEl = document.getElementById('funnel-chart');
-        if (trendEl && window.echarts && !trendChart) trendChart = echarts.init(trendEl);
-        if (funnelEl && window.echarts && !funnelChart) funnelChart = echarts.init(funnelEl);
-        renderCharts();
-        syncFunnelColumnWidths();
+        loadEcharts().then(function () {
+          try {
+            var trendEl = document.getElementById('trend-chart');
+            var funnelEl = document.getElementById('funnel-chart');
+            if (trendEl && window.echarts && !trendChart) trendChart = echarts.init(trendEl);
+            if (funnelEl && window.echarts && !funnelChart) funnelChart = echarts.init(funnelEl);
+            renderCharts();
+            syncFunnelColumnWidths();
+          } catch (err) {
+            console.error('图表初始化失败', err);
+          }
+        }).catch(function (err) {
+          console.error(err);
+        });
       }
 
       function disposeProtectedCharts() {
@@ -624,12 +704,13 @@
 
       function renderDetailChart() {
         var el = document.getElementById('detail-chart');
-        if (!el || !window.echarts) return;
-        if (detailChart) detailChart.dispose();
-        detailChart = echarts.init(el);
+        if (!el) return;
+        loadEcharts().then(function () {
+          if (detailChart) detailChart.dispose();
+          detailChart = echarts.init(el);
 
-        var series = detailSeries.value;
-        detailChart.setOption({
+          var series = detailSeries.value;
+          detailChart.setOption({
           backgroundColor: 'transparent',
           tooltip: {
             trigger: 'axis',
@@ -683,6 +764,9 @@
             },
           ],
         }, true);
+        }).catch(function (err) {
+          console.error(err);
+        });
       }
 
       function renderCharts() {
@@ -1128,31 +1212,32 @@
 
       function renderKpiTrendChart() {
         var el = document.getElementById('kpi-trend-chart');
-        if (!el || !window.echarts || !kpiTrendModal.value.show) return;
-        if (kpiTrendChart) kpiTrendChart.dispose();
-        kpiTrendChart = echarts.init(el);
+        if (!el || !kpiTrendModal.value.show) return;
+        loadEcharts().then(function () {
+          if (kpiTrendChart) kpiTrendChart.dispose();
+          kpiTrendChart = echarts.init(el);
 
-        var modal = kpiTrendModal.value;
-        var dates = [];
-        var values = [];
-        var isPercent = modal.kind === 'funnel';
+          var modal = kpiTrendModal.value;
+          var dates = [];
+          var values = [];
+          var isPercent = modal.kind === 'funnel';
 
-        if (modal.kind === 'funnel') {
-          var funnelData = funnelDailyTrend.value;
-          dates = funnelData.map(function (d) { return U.formatDateDisplay(d.day); });
-          values = funnelData.map(function (d) {
-            var rates = d.funnelRates || {};
-            return +((rates[modal.metricKey] || 0).toFixed(2));
-          });
-        } else {
-          var kpiData = kpiTrendData.value;
-          dates = kpiData.map(function (d) { return U.formatDateDisplay(d.date); });
-          values = kpiData.map(function (d) {
-            return +getKpiTrendValue(d, modal.metricKey).toFixed(4);
-          });
-        }
+          if (modal.kind === 'funnel') {
+            var funnelData = funnelDailyTrend.value;
+            dates = funnelData.map(function (d) { return U.formatDateDisplay(d.day); });
+            values = funnelData.map(function (d) {
+              var rates = d.funnelRates || {};
+              return +((rates[modal.metricKey] || 0).toFixed(2));
+            });
+          } else {
+            var kpiData = kpiTrendData.value;
+            dates = kpiData.map(function (d) { return U.formatDateDisplay(d.date); });
+            values = kpiData.map(function (d) {
+              return +getKpiTrendValue(d, modal.metricKey).toFixed(4);
+            });
+          }
 
-        kpiTrendChart.setOption({
+          kpiTrendChart.setOption({
           backgroundColor: 'transparent',
           tooltip: {
             trigger: 'axis',
@@ -1208,21 +1293,29 @@
             },
           ],
         }, true);
+        }).catch(function (err) {
+          console.error(err);
+        });
       }
 
       function loadData() {
+        if (window.location.protocol === 'file:') {
+          return Promise.reject(new Error('请运行 node serve.js 后访问 http://localhost:8080，不要直接打开 HTML 文件'));
+        }
+
         function applyData(data) {
           store.value = window.createDataStore(data);
           if (!store.value) {
             throw new Error('数据格式无效');
           }
+          rememberDataVersion(data);
+          deferredReady.value = false;
           resetFilters();
           loading.value = false;
           return Promise.resolve();
         }
 
-        var url = './public/data.json?_=' + Date.now();
-        return fetch(url, { cache: 'no-store' })
+        return fetch(getDataUrl())
           .then(function (res) {
             if (!res.ok) throw new Error('无法加载数据');
             return res.json();
@@ -1253,6 +1346,7 @@
         loadData()
           .then(function () { return nextTick(); })
           .then(function () {
+            scheduleDeferredSections();
             initCharts();
             window.addEventListener('resize', function () {
               if (trendChart) trendChart.resize();
@@ -1343,6 +1437,7 @@
         loginForm: loginForm,
         loginError: loginError,
         protectedScopeHint: protectedScopeHint,
+        deferredReady: deferredReady,
         openLoginModal: openLoginModal,
         closeLoginModal: closeLoginModal,
         handleLogin: handleLogin,
@@ -1397,5 +1492,11 @@
       };
     },
     template: '#app-template',
-  }).mount('#app');
+  });
+
+  app.config.errorHandler = function (err, instance, info) {
+    console.error('[Dashboard Error]', info, err);
+  };
+
+  app.mount('#app');
 })();
