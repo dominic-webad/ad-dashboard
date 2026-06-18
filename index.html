@@ -195,23 +195,6 @@
               </button>
             </div>
           </div>
-
-          <section class="panel trend-panel core-kpi-trend">
-            <div class="panel-header">
-              <div>
-                <h2>核心指标趋势</h2>
-                <p class="hint">柱状图：消耗 · 折线图（右轴）：{{ isApplovin ? 'D0 ROAS' : 'ROAS' }} · 按日期升序</p>
-              </div>
-              <div class="controls">
-                <div class="btn-group">
-                  <button type="button" :class="{ active: granularity === 'day' }" @click="granularity = 'day'">日</button>
-                  <button type="button" :class="{ active: granularity === 'week' }" @click="granularity = 'week'">周</button>
-                  <button type="button" :class="{ active: granularity === 'month' }" @click="granularity = 'month'">月</button>
-                </div>
-              </div>
-            </div>
-            <div id="trend-chart" class="chart"></div>
-          </section>
         </section>
         </template>
 
@@ -238,7 +221,28 @@
             </div>
           </div>
         </section>
+        </template>
 
+        <template v-if="canViewCore">
+        <section class="panel trend-panel">
+          <div class="panel-header">
+            <div>
+              <h2>核心指标趋势</h2>
+              <p class="hint">柱状图：消耗 · 折线图（右轴）：{{ isApplovin ? 'D0 ROAS' : 'ROAS' }} · 按日期升序</p>
+            </div>
+            <div class="controls">
+              <div class="btn-group">
+                <button type="button" :class="{ active: granularity === 'day' }" @click="granularity = 'day'">日</button>
+                <button type="button" :class="{ active: granularity === 'week' }" @click="granularity = 'week'">周</button>
+                <button type="button" :class="{ active: granularity === 'month' }" @click="granularity = 'month'">月</button>
+              </div>
+            </div>
+          </div>
+          <div id="trend-chart" class="chart"></div>
+        </section>
+        </template>
+
+        <template v-if="canViewFunnel">
         <section class="panel funnel-panel">
           <div class="panel-header">
             <div>
