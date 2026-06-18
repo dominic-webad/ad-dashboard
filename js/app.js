@@ -33,7 +33,6 @@
       var countryDropdownOpen = ref(false);
       var detailModal = ref({ show: false, creative: '' });
       var kpiTrendModal = ref({ show: false, label: '', metricKey: '', kind: 'kpi', accent: '#60a5fa' });
-      var detailQueryFilter = ref(null);
 
       var filters = ref({
         dateStart: '',
@@ -87,6 +86,14 @@
         return Object.assign({}, dimFilter(), {
           dateStart: lifecycleFilters.value.dateStart || filters.value.dateStart,
           dateEnd: lifecycleFilters.value.dateEnd || filters.value.dateEnd,
+        });
+      }
+
+      function dailyTrendFilter() {
+        var range = resolveDatePreset('last14');
+        return Object.assign({}, dimFilter(), {
+          dateStart: range.start,
+          dateEnd: range.end,
         });
       }
 
@@ -360,8 +367,7 @@
 
       var detailSeries = computed(function () {
         if (!store.value || !detailModal.value.creative) return [];
-        var f = detailQueryFilter.value || globalFilter();
-        return store.value.getCreativeDailySeries(detailModal.value.creative, f);
+        return store.value.getCreativeDailySeries(detailModal.value.creative, dailyTrendFilter());
       });
 
       var trendChart = null;
@@ -989,8 +995,7 @@
         document.body.removeChild(ta);
       }
 
-      function openCreativeDetail(item, queryFilter) {
-        detailQueryFilter.value = queryFilter || globalFilter();
+      function openCreativeDetail(item) {
         detailModal.value = {
           show: true,
           creative: item.creative,
@@ -1002,7 +1007,6 @@
 
       function closeCreativeDetail() {
         detailModal.value.show = false;
-        detailQueryFilter.value = null;
         if (detailChart) {
           detailChart.dispose();
           detailChart = null;

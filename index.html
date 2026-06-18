@@ -430,7 +430,7 @@
                   <td>{{ formatPercent(item.payRate) }}</td>
                   <td>{{ item.rampDays > 0 ? item.rampDays + ' 天' : '—' }}</td>
                   <td>
-                    <button type="button" class="btn-detail" @click="openCreativeDetail(item, globalFilter())">每日趋势</button>
+                    <button type="button" class="btn-detail" @click="openCreativeDetail(item)">每日趋势</button>
                   </td>
                 </tr>
               </tbody>
@@ -499,7 +499,7 @@
               <div class="compare-col-value">{{ formatCurrencyInteger(item.spend) }}</div>
               <div class="compare-col-ramp">{{ item.rampDays > 0 ? item.rampDays + ' 天' : '—' }}</div>
               <div class="compare-col-action">
-                <button type="button" class="btn-detail" @click="openCreativeDetail(item, compareFilter())">每日趋势</button>
+                <button type="button" class="btn-detail" @click="openCreativeDetail(item)">每日趋势</button>
               </div>
             </div>
           </div>
@@ -581,7 +581,7 @@
                   <td>{{ item.rampDays > 0 ? item.rampDays + ' 天' : '—' }}</td>
                   <td><span class="phase-tag" :class="'tag-' + item.phase">{{ item.phaseLabel }}</span></td>
                   <td>
-                    <button type="button" class="btn-detail" @click="openCreativeDetail(item, lifecycleFilter())">每日趋势</button>
+                    <button type="button" class="btn-detail" @click="openCreativeDetail(item)">每日趋势</button>
                   </td>
                 </tr>
               </tbody>
@@ -613,6 +613,7 @@
             <div class="modal-header">
               <div>
                 <h3>素材每日表现</h3>
+                <p class="modal-sub">固定显示过去 14 天 · 受优化师/账户/国家筛选影响</p>
               </div>
               <button type="button" class="modal-close" @click="closeCreativeDetail">✕</button>
             </div>
