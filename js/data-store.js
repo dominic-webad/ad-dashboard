@@ -50,8 +50,17 @@
     return rowsByDay;
   }
 
+  function optimizerMatches(store, row, f) {
+    var optimizer = store.getOptimizer(row[1]);
+    if (f.optimizers && f.optimizers.length) {
+      return f.optimizers.indexOf(optimizer) >= 0;
+    }
+    if (f.optimizer) return optimizer === f.optimizer;
+    return true;
+  }
+
   function rowMatchesDims(store, row, f, accountSet, countrySet) {
-    if (f.optimizer && store.getOptimizer(row[1]) !== f.optimizer) return false;
+    if (!optimizerMatches(store, row, f)) return false;
     if (accountSet && !accountSet.has(store.accounts[row[1]])) return false;
     if (countrySet && !countrySet.has(row[2])) return false;
     return true;
@@ -63,8 +72,7 @@
     if (f.dateEnd && day > f.dateEnd) return false;
     return rowMatchesDims(store, row, f, null, null)
       && (!f.accounts || !f.accounts.length || f.accounts.indexOf(store.accounts[row[1]]) >= 0)
-      && (!f.countries || !f.countries.length || f.countries.indexOf(row[2]) >= 0)
-      && (!f.optimizer || store.getOptimizer(row[1]) === f.optimizer);
+      && (!f.countries || !f.countries.length || f.countries.indexOf(row[2]) >= 0);
   }
 
   function eachRow(store, f, cb) {
@@ -938,7 +946,9 @@
       var day = U.toIsoDate(r.day);
       if (f.dateStart && day < f.dateStart) return false;
       if (f.dateEnd && day > f.dateEnd) return false;
-      if (f.optimizer && r.optimizer !== f.optimizer) return false;
+      if (f.optimizers && f.optimizers.length) {
+        if (f.optimizers.indexOf(r.optimizer) < 0) return false;
+      } else if (f.optimizer && r.optimizer !== f.optimizer) return false;
       if (f.accounts && f.accounts.length && f.accounts.indexOf(r.accountName) < 0) return false;
       if (f.countries && f.countries.length && f.countries.indexOf(r.country) < 0) return false;
       return true;

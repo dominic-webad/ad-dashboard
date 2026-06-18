@@ -40,6 +40,12 @@
           <div class="header-meta">
             <span class="badge">{{ meta.totalRecords }} 条记录</span>
             <span class="badge badge-muted">{{ formatDateDisplay(meta.dateRange && meta.dateRange.min) }} ~ {{ formatDateDisplay(meta.dateRange && meta.dateRange.max) }}</span>
+            <template v-if="isLoggedIn">
+              <span class="badge badge-user">{{ authUser.displayName }}</span>
+              <span v-if="protectedScopeHint !== '全部数据'" class="badge badge-scope">{{ protectedScopeHint }}</span>
+              <button type="button" class="btn-auth" @click="handleLogout">退出</button>
+            </template>
+            <button v-else type="button" class="btn-auth btn-auth-primary" @click="openLoginModal">登录</button>
           </div>
         </header>
 
@@ -131,6 +137,23 @@
           </div>
         </section>
 
+        <section v-if="!isLoggedIn" class="panel auth-gate-panel">
+          <div class="auth-gate">
+            <div class="auth-gate-icon">🔒</div>
+            <h2>核心数据模块需登录</h2>
+            <p class="auth-gate-desc">KPI 指标、核心指标趋势、转化漏斗分析需要登录后查看。投放国家、素材对比、生命周期等模块无需登录。</p>
+            <form class="auth-form" @submit.prevent="handleLogin">
+              <div class="auth-form-row">
+                <input v-model="loginForm.username" class="auth-input" type="text" placeholder="用户名" autocomplete="username" required />
+                <input v-model="loginForm.password" class="auth-input" type="password" placeholder="密码" autocomplete="current-password" required />
+                <button type="submit" class="btn-auth btn-auth-primary">登录</button>
+              </div>
+              <p v-if="loginError" class="auth-error">{{ loginError }}</p>
+            </form>
+          </div>
+        </section>
+
+        <template v-else>
         <section class="kpi-grid">
           <div class="kpi-card" v-for="k in kpiCards" :key="k.label" :style="{ '--accent': k.accent }">
             <div class="kpi-body">
@@ -315,6 +338,7 @@
             </div>
           </div>
         </section>
+        </template>
 
         <section class="panel country-panel">
           <div class="panel-header">
@@ -595,12 +619,32 @@
           :style="{ left: copyToast.x + 'px', top: copyToast.y + 'px' }"
         >{{ copyToast.message || '复制成功' }}</div>
 
+        <div v-if="showLoginModal" class="modal-overlay" @click.self="closeLoginModal">
+          <div class="modal-card auth-modal">
+            <div class="modal-header">
+              <div>
+                <h3>登录看板</h3>
+                <p class="modal-sub">admin 可查看全部数据 · 优化师仅可见本人 + Creative 数据</p>
+              </div>
+              <button type="button" class="modal-close" @click="closeLoginModal">✕</button>
+            </div>
+            <form class="auth-form auth-form-modal" @submit.prevent="handleLogin">
+              <label class="auth-label">用户名</label>
+              <input v-model="loginForm.username" class="auth-input auth-input-block" type="text" placeholder="admin / alina / barry / angie / dom" autocomplete="username" required />
+              <label class="auth-label">密码</label>
+              <input v-model="loginForm.password" class="auth-input auth-input-block" type="password" placeholder="请输入密码" autocomplete="current-password" required />
+              <p v-if="loginError" class="auth-error">{{ loginError }}</p>
+              <button type="submit" class="btn-auth btn-auth-primary btn-auth-block">登录</button>
+            </form>
+          </div>
+        </div>
+
         <div v-if="kpiTrendModal.show" class="modal-overlay" @click.self="closeKpiTrendModal">
           <div class="modal-card">
             <div class="modal-header">
               <div>
                 <h3>{{ kpiTrendModal.label }} 趋势</h3>
-                <p class="modal-sub">按日变化 · 受当前筛选条件影响</p>
+                <p class="modal-sub">按日变化 · 受登录权限与当前筛选条件影响</p>
               </div>
               <button type="button" class="modal-close" @click="closeKpiTrendModal">✕</button>
             </div>
@@ -631,6 +675,7 @@
   <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
   <script src="./js/utils.js"></script>
+  <script src="./js/auth.js"></script>
   <script src="./js/data-store.js"></script>
   <script src="./js/app.js"></script>
 </body>

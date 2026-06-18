@@ -33,6 +33,10 @@
       var countryDropdownOpen = ref(false);
       var detailModal = ref({ show: false, creative: '' });
       var kpiTrendModal = ref({ show: false, label: '', metricKey: '', kind: 'kpi', accent: '#60a5fa' });
+      var authUser = ref(null);
+      var showLoginModal = ref(false);
+      var loginForm = ref({ username: '', password: '' });
+      var loginError = ref('');
 
       var filters = ref({
         dateStart: '',
@@ -97,6 +101,19 @@
         });
       }
 
+      function protectedFilter() {
+        var base = Object.assign({}, dimFilter(), {
+          dateStart: filters.value.dateStart,
+          dateEnd: filters.value.dateEnd,
+        });
+        if (!authUser.value) return base;
+        if (authUser.value.role === 'admin') return base;
+        return Object.assign({}, base, {
+          optimizer: '',
+          optimizers: [authUser.value.optimizer, 'Creative'],
+        });
+      }
+
       function formatLocalIsoDate(d) {
         var y = d.getFullYear();
         var m = String(d.getMonth() + 1).padStart(2, '0');
@@ -113,12 +130,27 @@
         return store.value.queryBundle(globalFilter());
       });
 
+      var protectedBundle = computed(function () {
+        if (!store.value || !store.value.queryBundle || !authUser.value) return null;
+        return store.value.queryBundle(protectedFilter());
+      });
+
+      var isLoggedIn = computed(function () {
+        return !!authUser.value;
+      });
+
+      var protectedScopeHint = computed(function () {
+        if (!authUser.value) return '';
+        if (authUser.value.role === 'admin') return '全部数据';
+        return authUser.value.displayName + ' + Creative';
+      });
+
       var latestDay = computed(function () {
         return globalBundle.value ? globalBundle.value.latestDay : '';
       });
 
       var summary = computed(function () {
-        return globalBundle.value ? globalBundle.value.summary : {};
+        return protectedBundle.value ? protectedBundle.value.summary : {};
       });
 
       var kpiCards = computed(function () {
@@ -135,7 +167,7 @@
       });
 
       var kpiTrendData = computed(function () {
-        return globalBundle.value ? globalBundle.value.trendByDay : [];
+        return protectedBundle.value ? protectedBundle.value.trendByDay : [];
       });
 
       var funnelKpiCards = computed(function () {
@@ -152,12 +184,12 @@
       });
 
       var funnelDailyTrend = computed(function () {
-        return globalBundle.value ? globalBundle.value.funnelByDay : [];
+        return protectedBundle.value ? protectedBundle.value.funnelByDay : [];
       });
 
       var trendData = computed(function () {
-        if (!store.value || !globalBundle.value) return [];
-        return store.value.rollupTimeSeries(globalBundle.value.trendByDay, granularity.value);
+        if (!store.value || !protectedBundle.value) return [];
+        return store.value.rollupTimeSeries(protectedBundle.value.trendByDay, granularity.value);
       });
 
       var lifecycleBundle = computed(function () {
@@ -275,7 +307,7 @@
       });
 
       var funnelAccounts = computed(function () {
-        return globalBundle.value ? globalBundle.value.funnelAccounts : [];
+        return protectedBundle.value ? protectedBundle.value.funnelAccounts : [];
       });
 
       var countryTiers = computed(function () {
@@ -376,12 +408,64 @@
       var kpiTrendChart = null;
 
       function initCharts() {
+        if (isLoggedIn.value) ensureProtectedCharts();
+        syncFunnelColumnWidths();
+      }
+
+      function ensureProtectedCharts() {
+        if (!isLoggedIn.value) return;
         var trendEl = document.getElementById('trend-chart');
         var funnelEl = document.getElementById('funnel-chart');
-        if (trendEl && window.echarts) trendChart = echarts.init(trendEl);
-        if (funnelEl && window.echarts) funnelChart = echarts.init(funnelEl);
+        if (trendEl && window.echarts && !trendChart) trendChart = echarts.init(trendEl);
+        if (funnelEl && window.echarts && !funnelChart) funnelChart = echarts.init(funnelEl);
         renderCharts();
         syncFunnelColumnWidths();
+      }
+
+      function disposeProtectedCharts() {
+        if (trendChart) {
+          trendChart.dispose();
+          trendChart = null;
+        }
+        if (funnelChart) {
+          funnelChart.dispose();
+          funnelChart = null;
+        }
+      }
+
+      function openLoginModal() {
+        loginError.value = '';
+        showLoginModal.value = true;
+      }
+
+      function closeLoginModal() {
+        showLoginModal.value = false;
+        loginError.value = '';
+      }
+
+      function handleLogin() {
+        if (!window.AdAuth) {
+          loginError.value = '登录模块加载失败';
+          return;
+        }
+        var result = window.AdAuth.login(loginForm.value.username, loginForm.value.password);
+        if (!result.ok) {
+          loginError.value = result.error;
+          return;
+        }
+        authUser.value = result.user;
+        loginForm.value.password = '';
+        loginError.value = '';
+        showLoginModal.value = false;
+        nextTick().then(ensureProtectedCharts);
+      }
+
+      function handleLogout() {
+        if (window.AdAuth) window.AdAuth.logout();
+        authUser.value = null;
+        closeKpiTrendModal();
+        closeLoginModal();
+        disposeProtectedCharts();
       }
 
       function renderTrendChart() {
@@ -1162,6 +1246,9 @@
           loading.value = false;
           return;
         }
+        if (window.AdAuth) {
+          authUser.value = window.AdAuth.getSessionUser();
+        }
 
         loadData()
           .then(function () { return nextTick(); })
@@ -1186,12 +1273,12 @@
           });
       });
 
-      watch([filters, granularity], function () {
-        nextTick().then(renderTrendChart);
+      watch([filters, granularity, authUser], function () {
+        if (isLoggedIn.value) nextTick().then(renderTrendChart);
       }, { deep: true });
 
       watch([activeFunnel, funnelAccount, summary], function () {
-        nextTick().then(renderFunnelChart);
+        if (isLoggedIn.value) nextTick().then(renderFunnelChart);
       });
 
       watch([funnelAccounts, funnelSortKey, funnelSortDir], function () {
@@ -1250,6 +1337,16 @@
         countryDropdownOpen: countryDropdownOpen,
         detailModal: detailModal,
         kpiTrendModal: kpiTrendModal,
+        authUser: authUser,
+        isLoggedIn: isLoggedIn,
+        showLoginModal: showLoginModal,
+        loginForm: loginForm,
+        loginError: loginError,
+        protectedScopeHint: protectedScopeHint,
+        openLoginModal: openLoginModal,
+        closeLoginModal: closeLoginModal,
+        handleLogin: handleLogin,
+        handleLogout: handleLogout,
         kpiCards: kpiCards,
         funnelKpiCards: funnelKpiCards,
         lifecycleItems: lifecycleItems,
