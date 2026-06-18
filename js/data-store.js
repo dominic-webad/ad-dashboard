@@ -1,6 +1,10 @@
 (function (global) {
   var U = global.AdUtils;
 
+  function isApplovinStore(store) {
+    return store.platform === 'applovin';
+  }
+
   function lowerBoundDay(days, target) {
     var lo = 0;
     var hi = days.length;
@@ -78,15 +82,64 @@
     };
   }
 
-  function buildRowsByDay(store) {
+  function buildRowIndexes(data) {
     var rowsByDay = [];
-    var rows = store.rows;
+    var creativeDayMap = new Map();
+    var rows = data.rows;
+    var days = data.days;
+    var creatives = data.creatives;
+
     for (var i = 0; i < rows.length; i++) {
-      var dayIdx = rows[i][0];
+      var row = rows[i];
+      var dayIdx = row[0];
       if (!rowsByDay[dayIdx]) rowsByDay[dayIdx] = [];
       rowsByDay[dayIdx].push(i);
+
+      var day = days[dayIdx];
+      var creative = creatives[row[3]];
+      if (!creativeDayMap.has(creative)) creativeDayMap.set(creative, new Map());
+      var cDay = creativeDayMap.get(creative);
+      if (!cDay.has(day)) {
+        cDay.set(day, { spend: 0, conversionValue: 0, purchases: 0, clicks: 0 });
+      }
+      var cd = cDay.get(day);
+      cd.spend += row[4];
+      cd.conversionValue += row[6];
+      cd.purchases += row[5];
+      cd.clicks += row[7];
     }
-    return rowsByDay;
+
+    return { rowsByDay: rowsByDay, creativeDayMap: creativeDayMap };
+  }
+
+  function summarizeCreativeDayMap(dayMap) {
+    if (!dayMap) return { spend: 0, conversionValue: 0, purchases: 0, roas: 0 };
+    var spend = 0;
+    var conversionValue = 0;
+    var purchases = 0;
+    dayMap.forEach(function (d) {
+      spend += d.spend;
+      conversionValue += d.conversionValue;
+      purchases += d.purchases;
+    });
+    return {
+      spend: spend,
+      conversionValue: conversionValue,
+      purchases: purchases,
+      roas: spend > 0 ? conversionValue / spend : 0,
+    };
+  }
+
+  function filterDayMapEntries(dayMap, f) {
+    if (!dayMap) return [];
+    var entries = Array.from(dayMap.entries());
+    if (!f || (!f.dateStart && !f.dateEnd)) return entries;
+    return entries.filter(function (entry) {
+      var day = entry[0];
+      if (f.dateStart && day < f.dateStart) return false;
+      if (f.dateEnd && day > f.dateEnd) return false;
+      return true;
+    });
   }
 
   function optimizerMatches(store, row, f) {
@@ -164,8 +217,8 @@
     return '';
   }
 
-  function finalizeSummaryState(s) {
-    return Object.assign({
+  function finalizeSummaryState(s, isApplovin) {
+    var base = {
       spend: s.spend,
       purchases: s.purchases,
       conversionValue: s.conversionValue,
@@ -180,8 +233,15 @@
       addsToCart: s.addsToCart,
       checkoutsInitiated: s.checkoutsInitiated,
       addsPaymentInfo: s.addsPaymentInfo,
-    }, s.funnel, {
-      funnelRates: U.buildFunnelRates(s.funnel),
+    };
+    if (isApplovin) {
+      base.d7ConversionValue = s.d7ConversionValue || 0;
+      base.d7Roas = s.spend > 0 ? (s.d7ConversionValue || 0) / s.spend : 0;
+    }
+    return Object.assign(base, s.funnel, {
+      funnelRates: isApplovin
+        ? U.buildApplovinFunnelRates(Object.assign({}, s.funnel, { impressions: s.impressions }))
+        : U.buildFunnelRates(s.funnel),
       usCpm: s.funnel.usImpressions > 0 ? (s.funnel.usSpend / s.funnel.usImpressions) * 1000 : 0,
     });
   }
@@ -227,7 +287,218 @@
     });
   }
 
-  function queryBundle(store, f) {
+  function queryBundleApplovin(store, f) {
+    var summaryState = {
+      spend: 0,
+      purchases: 0,
+      conversionValue: 0,
+      d7ConversionValue: 0,
+      clicks: 0,
+      impressions: 0,
+      landingPageViews: 0,
+      addsToCart: 0,
+      checkoutsInitiated: 0,
+      addsPaymentInfo: 0,
+      funnel: {
+        impressions: 0,
+        landingPageViews: 0, addsToCart: 0, checkoutsInitiated: 0, addsPaymentInfo: 0, purchases: 0,
+        usPurchases: 0, usSpend: 0, usImpressions: 0,
+      },
+    };
+    var timeMap = new Map();
+    var creativeMap = new Map();
+    var creativeDayMap = new Map();
+    var countryMap = new Map();
+    var funnelCountryMap = new Map();
+    var funnelDayMap = new Map();
+    var latestDay = '';
+
+    eachRow(store, f, function (row) {
+      var day = store.days[row[0]];
+      var creative = store.creatives[row[3]];
+      var country = row[2];
+      if (!latestDay || day > latestDay) latestDay = day;
+
+      summaryState.spend += row[4];
+      summaryState.purchases += row[5];
+      summaryState.conversionValue += row[6];
+      summaryState.d7ConversionValue += row[15] || 0;
+      summaryState.clicks += row[7];
+      summaryState.impressions += row[10] || 0;
+      summaryState.landingPageViews += row[11] || 0;
+      summaryState.addsToCart += row[12] || 0;
+      summaryState.checkoutsInitiated += row[13] || 0;
+      summaryState.addsPaymentInfo += row[14] || 0;
+      summaryState.funnel.impressions += row[10] || 0;
+      summaryState.funnel.landingPageViews += row[11] || 0;
+      summaryState.funnel.addsToCart += row[12] || 0;
+      summaryState.funnel.checkoutsInitiated += row[13] || 0;
+      summaryState.funnel.addsPaymentInfo += row[14] || 0;
+      summaryState.funnel.purchases += row[5];
+      if (country === 'US') {
+        summaryState.funnel.usPurchases += row[5];
+        summaryState.funnel.usSpend += row[4];
+        summaryState.funnel.usImpressions += row[10] || 0;
+      }
+
+      if (!timeMap.has(day)) {
+        timeMap.set(day, { date: day, spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0 });
+      }
+      var t = timeMap.get(day);
+      t.spend += row[4];
+      t.purchases += row[5];
+      t.conversionValue += row[6];
+      t.clicks += row[7];
+      t.impressions += row[10] || 0;
+
+      if (!creativeMap.has(creative)) {
+        creativeMap.set(creative, {
+          creative: creative,
+          launchDate: store.getLaunchDate(creative),
+          spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, ctrSum: 0, ctrCount: 0,
+        });
+      }
+      var cg = creativeMap.get(creative);
+      cg.spend += row[4];
+      cg.purchases += row[5];
+      cg.conversionValue += row[6];
+      cg.clicks += row[7];
+      cg.impressions += row[10] || 0;
+      if (row[8] > 0) { cg.ctrSum += row[8]; cg.ctrCount += 1; }
+
+      if (!creativeDayMap.has(creative)) creativeDayMap.set(creative, new Map());
+      var cDay = creativeDayMap.get(creative);
+      if (!cDay.has(day)) {
+        cDay.set(day, { spend: 0, conversionValue: 0, purchases: 0, clicks: 0 });
+      }
+      var cd = cDay.get(day);
+      cd.spend += row[4];
+      cd.conversionValue += row[6];
+      cd.purchases += row[5];
+      cd.clicks += row[7];
+
+      if (!countryMap.has(country)) {
+        countryMap.set(country, { country: country, spend: 0, conversionValue: 0, purchases: 0 });
+      }
+      var co = countryMap.get(country);
+      co.spend += row[4];
+      co.conversionValue += row[6];
+      co.purchases += row[5];
+
+      if (!funnelCountryMap.has(country)) {
+        funnelCountryMap.set(country, {
+          country: country,
+          spend: 0, conversionValue: 0, clicks: 0, impressions: 0,
+          landingPageViews: 0, addsToCart: 0,
+          checkoutsInitiated: 0, addsPaymentInfo: 0, purchases: 0,
+        });
+      }
+      var fc = funnelCountryMap.get(country);
+      fc.spend += row[4];
+      fc.conversionValue += row[6];
+      fc.clicks += row[7];
+      fc.impressions += row[10] || 0;
+      fc.landingPageViews += row[11] || 0;
+      fc.addsToCart += row[12] || 0;
+      fc.checkoutsInitiated += row[13] || 0;
+      fc.addsPaymentInfo += row[14] || 0;
+      fc.purchases += row[5];
+
+      if (!funnelDayMap.has(day)) {
+        funnelDayMap.set(day, {
+          day: day,
+          spend: 0,
+          conversionValue: 0,
+          impressions: 0,
+          landingPageViews: 0,
+          addsToCart: 0,
+          checkoutsInitiated: 0,
+          addsPaymentInfo: 0,
+          purchases: 0,
+          usPurchases: 0,
+        });
+      }
+      var fd = funnelDayMap.get(day);
+      fd.spend += row[4];
+      fd.conversionValue += row[6];
+      fd.impressions += row[10] || 0;
+      fd.landingPageViews += row[11] || 0;
+      fd.addsToCart += row[12] || 0;
+      fd.checkoutsInitiated += row[13] || 0;
+      fd.addsPaymentInfo += row[14] || 0;
+      fd.purchases += row[5];
+      if (country === 'US') {
+        fd.usPurchases += row[5];
+      }
+    });
+
+    var trendByDay = Array.from(timeMap.values()).sort(function (a, b) {
+      return a.date.localeCompare(b.date);
+    }).map(function (row) {
+      return Object.assign({}, row, {
+        roas: row.spend > 0 ? row.conversionValue / row.spend : 0,
+        cpa: row.purchases > 0 ? row.spend / row.purchases : 0,
+        ctr: row.impressions > 0 ? (row.clicks / row.impressions) * 100 : 0,
+        cpc: row.clicks > 0 ? row.spend / row.clicks : 0,
+      });
+    });
+
+    var funnelByDay = Array.from(funnelDayMap.values()).sort(function (a, b) {
+      return a.day.localeCompare(b.day);
+    }).map(function (d) {
+      var funnel = {
+        impressions: d.impressions,
+        landingPageViews: d.landingPageViews,
+        addsToCart: d.addsToCart,
+        checkoutsInitiated: d.checkoutsInitiated,
+        addsPaymentInfo: d.addsPaymentInfo,
+        purchases: d.purchases,
+        usPurchases: d.usPurchases,
+      };
+      return Object.assign({}, d, {
+        revenue: d.conversionValue,
+        funnelRates: U.buildApplovinFunnelRates(funnel),
+        roas: d.spend > 0 ? d.conversionValue / d.spend : 0,
+      });
+    });
+
+    var funnelCountries = Array.from(funnelCountryMap.values()).map(function (item) {
+      var funnelData = {
+        impressions: item.impressions,
+        landingPageViews: item.landingPageViews,
+        addsToCart: item.addsToCart,
+        checkoutsInitiated: item.checkoutsInitiated,
+        addsPaymentInfo: item.addsPaymentInfo,
+        purchases: item.purchases,
+        usPurchases: item.country === 'US' ? item.purchases : 0,
+        usImpressions: item.country === 'US' ? item.impressions : 0,
+      };
+      return Object.assign({}, item, {
+        revenue: item.conversionValue,
+        roas: item.spend > 0 ? item.conversionValue / item.spend : 0,
+        funnelRates: U.buildApplovinFunnelRates(funnelData),
+        usCpm: item.impressions > 0 ? (item.spend / item.impressions) * 1000 : 0,
+      });
+    }).sort(function (a, b) { return b.spend - a.spend; });
+
+    var countries = Array.from(countryMap.values()).map(function (g) {
+      var roas = g.spend > 0 ? g.conversionValue / g.spend : 0;
+      return Object.assign({}, g, { roas: roas, roi: roas * 100 });
+    });
+
+    return {
+      latestDay: latestDay,
+      summary: finalizeSummaryState(summaryState, true),
+      trendByDay: trendByDay,
+      funnelByDay: funnelByDay,
+      funnelCountries: funnelCountries,
+      countries: countries,
+      creatives: finalizeCreativeList(creativeMap, latestDay, store),
+      creativeDayMap: creativeDayMap,
+    };
+  }
+
+  function queryBundleFb(store, f) {
     var summaryState = {
       spend: 0,
       purchases: 0,
@@ -426,7 +697,7 @@
 
     return {
       latestDay: latestDay,
-      summary: finalizeSummaryState(summaryState),
+      summary: finalizeSummaryState(summaryState, false),
       trendByDay: trendByDay,
       funnelByDay: funnelByDay,
       funnelAccounts: funnelAccounts,
@@ -434,6 +705,11 @@
       creatives: finalizeCreativeList(creativeMap, latestDay, store),
       creativeDayMap: creativeDayMap,
     };
+  }
+
+  function queryBundle(store, f) {
+    if (isApplovinStore(store)) return queryBundleApplovin(store, f);
+    return queryBundleFb(store, f);
   }
 
   function summarize(store, f) {
@@ -654,7 +930,42 @@
     }).sort(function (a, b) { return b.spend - a.spend; });
   }
 
+  function getCountryDailySeries(store, country, f) {
+    var map = new Map();
+    eachRow(store, f, function (row) {
+      if (row[2] !== country) return;
+      var day = store.days[row[0]];
+      if (!map.has(day)) map.set(day, { day: day, spend: 0, conversionValue: 0, d7ConversionValue: 0, purchases: 0 });
+      var d = map.get(day);
+      d.spend += row[4];
+      d.conversionValue += row[6];
+      d.d7ConversionValue += row[15] || 0;
+      d.purchases += row[5];
+    });
+    return Array.from(map.values()).sort(function (a, b) { return a.day.localeCompare(b.day); }).map(function (d) {
+      return Object.assign({}, d, {
+        roas: d.spend > 0 ? d.conversionValue / d.spend : 0,
+        d7Roas: d.spend > 0 ? (d.d7ConversionValue || 0) / d.spend : 0,
+      });
+    });
+  }
+
   function getCreativeDailySeries(store, creative, f) {
+    var dayMap = store.creativeDayMap && store.creativeDayMap.get(creative);
+    if (dayMap) {
+      return filterDayMapEntries(dayMap, f).sort(function (a, b) {
+        return a[0].localeCompare(b[0]);
+      }).map(function (entry) {
+        var d = entry[1];
+        return {
+          day: entry[0],
+          spend: d.spend,
+          conversionValue: d.conversionValue,
+          purchases: d.purchases,
+          roas: d.spend > 0 ? d.conversionValue / d.spend : 0,
+        };
+      });
+    }
     var map = new Map();
     eachRow(store, f, function (row) {
       if (store.creatives[row[3]] !== creative) return;
@@ -751,10 +1062,10 @@
     return days.length ? days[0] : '';
   }
 
-  function attachRampDays(creatives, allTimeBundle, referenceDay) {
-    if (!allTimeBundle) return creatives;
+  function attachRampDays(creatives, creativeDayMap, referenceDay) {
+    if (!creativeDayMap) return creatives;
     return creatives.map(function (c) {
-      var firstSeen = getCreativeFirstSeenDay(allTimeBundle.creativeDayMap, c.creative);
+      var firstSeen = getCreativeFirstSeenDay(creativeDayMap, c.creative);
       var rampDays = firstSeen && referenceDay ? U.daysBetween(firstSeen, referenceDay) + 1 : 0;
       return Object.assign({}, c, {
         firstSeenDay: firstSeen,
@@ -763,27 +1074,24 @@
     });
   }
 
-  function buildLifecycleDisplay(periodBundle, allTimeBundle, referenceDay) {
-    if (!periodBundle || !allTimeBundle) return [];
-
-    var periodSet = new Set(periodBundle.creatives.map(function (c) { return c.creative; }));
-    var allTimeForPhase = allTimeBundle.creatives.filter(function (c) {
-      return periodSet.has(c.creative);
-    });
-    var phaseByCreative = new Map();
-    var phaseReferenceDay = allTimeBundle.latestDay || referenceDay;
-    classifyLifecycleFromBundle(allTimeForPhase, allTimeBundle.creativeDayMap, phaseReferenceDay).forEach(function (c) {
-      phaseByCreative.set(c.creative, c);
-    });
+  function buildLifecycleDisplay(periodBundle, creativeDayMap, referenceDay, phaseReferenceDay) {
+    if (!periodBundle || !creativeDayMap) return [];
+    var phaseDay = phaseReferenceDay || referenceDay || '';
 
     return periodBundle.creatives.map(function (period) {
-      var firstSeen = getCreativeFirstSeenDay(allTimeBundle.creativeDayMap, period.creative);
-      var rampDays = firstSeen && referenceDay ? U.daysBetween(firstSeen, referenceDay) + 1 : 0;
-      var phaseInfo = phaseByCreative.get(period.creative) || {
+      var dayMap = creativeDayMap.get(period.creative);
+      var allTimeStats = summarizeCreativeDayMap(dayMap);
+      var phaseInfo = classifyLifecycleFromBundle([{
+        creative: period.creative,
+        spend: allTimeStats.spend,
+        roas: allTimeStats.roas,
+      }], creativeDayMap, phaseDay)[0] || {
         phase: 'growth',
         phaseLabel: U.PHASE_LABELS.growth,
         isDecline: false,
       };
+      var firstSeen = getCreativeFirstSeenDay(creativeDayMap, period.creative);
+      var rampDays = firstSeen && referenceDay ? U.daysBetween(firstSeen, referenceDay) + 1 : 0;
       return Object.assign({}, period, {
         phase: phaseInfo.phase,
         phaseLabel: phaseInfo.phaseLabel,
@@ -794,7 +1102,7 @@
     });
   }
 
-  function findRisingFromDayMap(creativeDayMap, latestDay, windowDays) {
+  function findRisingFromDayMap(creativeDayMap, latestDay, windowDays, minRoas) {
     if (!latestDay) return [];
     var dayList = U.buildLastNDays(latestDay, windowDays);
     var results = [];
@@ -815,7 +1123,8 @@
       });
       var totalSpend = spend;
       var roas = spend > 0 ? conversionValue / spend : 0;
-      if (totalSpend <= 1000 || roas <= 0.3) return;
+      if (totalSpend <= 1000) return;
+      if (minRoas > 0 && roas <= minRoas) return;
       results.push({
         creative: creative,
         dayList: dayList,
@@ -833,7 +1142,7 @@
     return results.sort(function (a, b) { return b.totalSpend - a.totalSpend; });
   }
 
-  function findRisingForWindow(store, f, latestDay, windowDays) {
+  function findRisingForWindow(store, f, latestDay, windowDays, minRoas) {
     if (!latestDay) return [];
     var dayList = U.buildLastNDays(latestDay, windowDays);
     var daySet = new Set(dayList);
@@ -866,7 +1175,8 @@
       var spends = dayList.map(function (d) { return item.daySpend[d] || 0; });
       var totalSpend = spends.reduce(function (s, v) { return s + v; }, 0);
       var roas = item.spend > 0 ? item.conversionValue / item.spend : 0;
-      if (totalSpend <= 1000 || roas <= 0.3) return;
+      if (totalSpend <= 1000) return;
+      if (minRoas > 0 && roas <= minRoas) return;
       results.push({
         creative: item.creative,
         dayList: dayList,
@@ -886,22 +1196,28 @@
 
   function findRisingCreatives(store, f, latestDay, windowDays) {
     windowDays = windowDays || 7;
-    var items = findRisingForWindow(store, f, latestDay, windowDays);
+    var minRoas = isApplovinStore(store) ? 0 : 0.3;
+    var items = findRisingForWindow(store, f, latestDay, windowDays, minRoas);
     return { windowDays: windowDays, items: items };
   }
 
-  function findRisingFromBundle(creativeDayMap, latestDay, windowDays) {
+  function findRisingFromBundle(creativeDayMap, latestDay, windowDays, minRoas) {
     windowDays = windowDays || 7;
+    if (minRoas === undefined) minRoas = 0.3;
     return {
       windowDays: windowDays,
-      items: findRisingFromDayMap(creativeDayMap, latestDay, windowDays),
+      items: findRisingFromDayMap(creativeDayMap, latestDay, windowDays, minRoas),
     };
   }
 
   function createDataStore(data) {
     if (!data || !data.meta) return null;
 
-    var meta = Object.assign({}, data.meta, { optimizers: U.OPTIMIZER_NAMES });
+    var platform = data.meta.platform || 'fb';
+    var meta = Object.assign({}, data.meta, { platform: platform });
+    if (platform !== 'applovin') {
+      meta.optimizers = U.OPTIMIZER_NAMES;
+    }
 
     if (!data.meta.compact) {
       return {
@@ -926,17 +1242,22 @@
       };
     }
 
+    var rowIndexes = buildRowIndexes(data);
     var store = {
       compact: true,
+      platform: platform,
       meta: meta,
       days: data.days,
       accounts: data.accounts,
       creatives: data.creatives,
       rows: data.rows,
-      rowsByDay: buildRowsByDay({ days: data.days, rows: data.rows }),
+      dataLatestDay: data.days.length ? data.days[data.days.length - 1] : '',
+      rowsByDay: rowIndexes.rowsByDay,
+      creativeDayMap: rowIndexes.creativeDayMap,
       optCache: {},
       launchCache: {},
       getOptimizer: function (accIdx) {
+        if (platform === 'applovin') return '—';
         if (!store.optCache[accIdx]) store.optCache[accIdx] = U.parseOptimizerFromAccount(store.accounts[accIdx]);
         return store.optCache[accIdx];
       },
@@ -949,7 +1270,10 @@
       classifyLifecycleFromBundle: classifyLifecycleFromBundle,
       buildLifecycleDisplay: buildLifecycleDisplay,
       attachRampDays: attachRampDays,
-      findRisingFromBundle: findRisingFromBundle,
+      findRisingFromBundle: function (creativeDayMap, latestDay, windowDays) {
+        var minRoas = isApplovinStore(store) ? 0 : 0.3;
+        return findRisingFromBundle(creativeDayMap, latestDay, windowDays, minRoas);
+      },
       summarize: function (f) { return queryBundle(store, f).summary; },
       aggregateByTime: function (f, g) {
         return rollupTimeSeries(queryBundle(store, f).trendByDay, g);
@@ -963,28 +1287,52 @@
           store
         );
       },
-      groupFunnelByAccount: function (f) { return queryBundle(store, f).funnelAccounts; },
+      groupFunnelByAccount: function (f) {
+        var bundle = queryBundle(store, f);
+        return isApplovinStore(store) ? bundle.funnelCountries : bundle.funnelAccounts;
+      },
       aggregateFunnelByDay: function (f) { return queryBundle(store, f).funnelByDay; },
       groupByCountry: function (f) { return queryBundle(store, f).countries; },
       getCreativeDailySeries: function (c, f) { return getCreativeDailySeries(store, c, f); },
+      getCountryDailySeries: function (c, f) { return getCountryDailySeries(store, c, f); },
       classifyLifecycle: function (items, f) {
         var bundle = queryBundle(store, f);
         return classifyLifecycleFromBundle(items, bundle.creativeDayMap, bundle.latestDay);
       },
       findRisingCreatives: function (f, ld, windowDays) {
         var bundle = queryBundle(store, f);
-        return findRisingFromBundle(bundle.creativeDayMap, ld || bundle.latestDay, windowDays);
+        var minRoas = isApplovinStore(store) ? 0 : 0.3;
+        return findRisingFromBundle(bundle.creativeDayMap, ld || bundle.latestDay, windowDays, minRoas);
       },
       getLatestDay: function (f) { return queryBundle(store, f).latestDay; },
     };
     var bundleCache = createBundleCache(16);
     var allTimeFilter = { optimizer: '', accounts: [], countries: [] };
     var allTimeKey = filterKey(allTimeFilter);
-    var allTimeBundle = queryBundle(store, allTimeFilter);
-    bundleCache.seed(allTimeKey, allTimeBundle);
+    var allTimeBundleLazy = null;
 
-    store.allTimeBundle = allTimeBundle;
-    store.clearBundleCache = function () { bundleCache.clear(); };
+    function ensureAllTimeBundle() {
+      if (!allTimeBundleLazy) {
+        if (store.creativeDayMap) {
+          allTimeBundleLazy = queryBundle(store, allTimeFilter);
+          allTimeBundleLazy.creativeDayMap = store.creativeDayMap;
+        } else {
+          allTimeBundleLazy = queryBundle(store, allTimeFilter);
+        }
+        bundleCache.seed(allTimeKey, allTimeBundleLazy);
+      }
+      return allTimeBundleLazy;
+    }
+
+    Object.defineProperty(store, 'allTimeBundle', {
+      get: function () { return ensureAllTimeBundle(); },
+      enumerable: true,
+      configurable: true,
+    });
+    store.clearBundleCache = function () {
+      bundleCache.clear();
+      allTimeBundleLazy = null;
+    };
     store.queryBundle = function (f) {
       return bundleCache.get(filterKey(f), function () {
         return queryBundle(store, f);

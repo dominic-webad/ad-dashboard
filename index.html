@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>投放效果分析看板</title>
-  <link rel="stylesheet" href="./css/style.css?v=20260618-4" />
+  <link rel="preload" href="./public/fb/manifest.json" as="fetch" crossorigin />
+  <link rel="stylesheet" href="./css/style.css?v=20260618-7" />
 </head>
 <body>
   <div id="app">
@@ -31,15 +32,14 @@
       <div v-else class="dashboard-main">
         <header class="header">
           <div class="header-main">
-            <div class="logo">AD</div>
+            <div class="logo">{{ platformConfig.logo }}</div>
             <div>
-              <h1>投放效果分析看板</h1>
-              <p>面向广告优化师 · 素材全生命周期洞察</p>
+              <h1>{{ platformConfig.label }} 投放效果分析看板</h1>
+              <p>{{ platformConfig.subtitle }}</p>
             </div>
           </div>
           <div class="header-meta">
-            <span class="badge">{{ meta.totalRecords }} 条记录</span>
-            <span class="badge badge-muted">{{ formatDateDisplay(meta.dateRange && meta.dateRange.min) }} ~ {{ formatDateDisplay(meta.dateRange && meta.dateRange.max) }}</span>
+            <span class="badge badge-muted">{{ formatDateDisplay(manifestDateRange.min) }} ~ {{ formatDateDisplay(manifestDateRange.max) }}</span>
             <template v-if="isLoggedIn">
               <span class="badge badge-user">{{ authUser ? authUser.displayName : '' }}</span>
               <span v-if="protectedScopeHint && protectedScopeHint !== '全部数据'" class="badge badge-scope">{{ protectedScopeHint }}</span>
@@ -48,6 +48,17 @@
             <button v-else type="button" class="btn-auth btn-auth-primary" @click="openLoginModal">登录</button>
           </div>
         </header>
+
+        <nav class="platform-tabs">
+          <button
+            v-for="p in platformList"
+            :key="p.id"
+            type="button"
+            class="platform-tab"
+            :class="{ active: platform === p.id }"
+            @click="switchPlatform(p.id)"
+          >{{ p.label }}</button>
+        </nav>
 
         <section class="filters">
           <div class="filters-title-row">
@@ -68,7 +79,7 @@
               <label>结束日期</label>
               <input type="date" v-model="filters.dateEnd" @change="clearDatePreset()" @click="openDatePicker" />
             </div>
-            <div class="filter-group">
+            <div class="filter-group" v-if="platformConfig.filters.showOptimizer">
               <label>优化师</label>
               <select v-model="filters.optimizer">
                 <option value="">全部优化师</option>
@@ -77,11 +88,11 @@
             </div>
 
             <div class="filter-group multiselect-wrap">
-              <label>账号（可多选）</label>
+              <label>{{ platformConfig.filters.accountLabel }}（可多选）</label>
               <div class="multiselect" @click.stop="accountDropdownOpen = !accountDropdownOpen; countryDropdownOpen = false">
                 <div class="multiselect-display">
-                  <span v-if="!filters.accounts.length" class="placeholder">全部账号</span>
-                  <span v-else class="selected-count">已选 {{ filters.accounts.length }} 个账号</span>
+                  <span v-if="!filters.accounts.length" class="placeholder">{{ platformConfig.filters.accountPlaceholder }}</span>
+                  <span v-else class="selected-count">已选 {{ filters.accounts.length }} 个{{ isApplovin ? ' Set' : '账号' }}</span>
                 </div>
                 <div v-if="accountDropdownOpen" class="multiselect-panel" @click.stop>
                   <input class="multiselect-search" v-model="accountSearch" placeholder="搜索账号…" />
@@ -137,12 +148,16 @@
           </div>
         </section>
 
-        <section v-if="!isLoggedIn" class="panel auth-gate-panel">
+        <section v-if="!canViewCore" class="panel auth-gate-panel">
           <div class="auth-gate">
             <div class="auth-gate-icon">🔒</div>
-            <h2>核心数据模块需登录</h2>
-            <p class="auth-gate-desc">KPI 指标、核心指标趋势、转化漏斗分析需要登录后查看。投放国家、素材对比、生命周期等模块无需登录。</p>
-            <form class="auth-form" @submit.prevent="handleLogin">
+            <h2 v-if="isApplovin && isLoggedIn">需管理员权限</h2>
+            <h2 v-else-if="isApplovin">核心 KPI 需管理员登录</h2>
+            <h2 v-else>核心数据模块需登录</h2>
+            <p v-if="isApplovin && isLoggedIn" class="auth-gate-desc">当前账号无权查看 AppLovin 核心 KPI 与趋势，请使用 admin 登录。下方漏斗、国家、素材等模块仍可正常查看。</p>
+            <p v-else-if="isApplovin" class="auth-gate-desc">顶部 KPI 指标与核心指标趋势需要 admin 登录后查看。漏斗转化率、转化漏斗分析、投放国家、素材对比、生命周期等模块无需登录。</p>
+            <p v-else class="auth-gate-desc">KPI 指标、核心指标趋势、转化漏斗分析需要登录后查看。投放国家、素材对比、生命周期等模块无需登录。</p>
+            <form v-if="!isLoggedIn" class="auth-form" @submit.prevent="handleLogin">
               <div class="auth-form-row">
                 <input v-model="loginForm.username" class="auth-input" type="text" placeholder="用户名" autocomplete="username" required />
                 <input v-model="loginForm.password" class="auth-input" type="password" placeholder="密码" autocomplete="current-password" required />
@@ -153,7 +168,7 @@
           </div>
         </section>
 
-        <div v-else class="protected-sections">
+        <template v-if="canViewCore">
         <section class="kpi-grid">
           <div class="kpi-card" v-for="k in kpiCards" :key="k.label" :style="{ '--accent': k.accent }">
             <div class="kpi-body">
@@ -177,8 +192,27 @@
           </div>
         </section>
 
+        <section class="panel trend-panel">
+          <div class="panel-header">
+            <div>
+              <h2>核心指标趋势</h2>
+              <p class="hint">柱状图：消耗 · 折线图（右轴）：{{ isApplovin ? 'D0 ROAS' : 'ROAS' }} · 按日期升序</p>
+            </div>
+            <div class="controls">
+              <div class="btn-group">
+                <button type="button" :class="{ active: granularity === 'day' }" @click="granularity = 'day'">日</button>
+                <button type="button" :class="{ active: granularity === 'week' }" @click="granularity = 'week'">周</button>
+                <button type="button" :class="{ active: granularity === 'month' }" @click="granularity = 'month'">月</button>
+              </div>
+            </div>
+          </div>
+          <div id="trend-chart" class="chart"></div>
+        </section>
+        </template>
+
+        <template v-if="canViewFunnel">
         <section class="kpi-section-label">漏斗转化率</section>
-        <section class="kpi-grid funnel-kpi-grid funnel-kpi-6">
+        <section class="kpi-grid funnel-kpi-grid" :class="isApplovin ? 'funnel-kpi-4' : 'funnel-kpi-6'">
           <div class="kpi-card" v-for="k in funnelKpiCards" :key="k.label" :style="{ '--accent': k.accent }">
             <div class="kpi-body">
               <div class="kpi-top">
@@ -200,33 +234,21 @@
           </div>
         </section>
 
-        <section class="panel trend-panel">
-          <div class="panel-header">
-            <div>
-              <h2>核心指标趋势</h2>
-              <p class="hint">柱状图：消耗 · 折线图（右轴）：ROAS · 按日期升序</p>
-            </div>
-            <div class="controls">
-              <div class="btn-group">
-                <button type="button" :class="{ active: granularity === 'day' }" @click="granularity = 'day'">日</button>
-                <button type="button" :class="{ active: granularity === 'week' }" @click="granularity = 'week'">周</button>
-                <button type="button" :class="{ active: granularity === 'month' }" @click="granularity = 'month'">月</button>
-              </div>
-            </div>
-          </div>
-          <div id="trend-chart" class="chart"></div>
-        </section>
-
         <section class="panel funnel-panel">
           <div class="panel-header">
             <div>
               <h2>转化漏斗分析</h2>
-              <p class="hint">Click → LPV → 加购 → 结账 → 支付信息 → 购买</p>
+              <p v-if="isApplovin" class="hint">展示 → 浏览商品 → 加购 → 结账 → D0 购买</p>
+              <p v-else class="hint">Click → LPV → 加购 → 结账 → 支付信息 → 购买</p>
             </div>
-            <select class="select-sm" v-model="funnelAccount">
-                <option value="">全部账号（汇总）</option>
-                <option v-for="a in funnelAccounts" :key="a.accountName" :value="a.accountName">{{ a.accountName }}</option>
-              </select>
+            <select v-if="isApplovin" class="select-sm" v-model="funnelCountry">
+              <option value="">全部国家（汇总）</option>
+              <option v-for="c in funnelCountries" :key="c.country" :value="c.country">{{ c.country }}</option>
+            </select>
+            <select v-else class="select-sm" v-model="funnelAccount">
+              <option value="">全部账号（汇总）</option>
+              <option v-for="a in funnelAccounts" :key="a.accountName" :value="a.accountName">{{ a.accountName }}</option>
+            </select>
           </div>
           <div class="funnel-layout">
             <div class="funnel-chart-wrap">
@@ -235,7 +257,54 @@
             </div>
             <div class="funnel-table-wrap">
               <div class="funnel-table-body-scroll">
-              <table class="funnel-table funnel-table-main">
+              <!-- AppLovin country funnel table -->
+              <table v-if="isApplovin" class="funnel-table funnel-table-main">
+                <colgroup>
+                  <col class="funnel-col-account" />
+                  <col class="funnel-col-metric" />
+                  <col class="funnel-col-metric" />
+                  <col class="funnel-col-metric" />
+                  <col class="funnel-col-metric" />
+                  <col class="funnel-col-rate" />
+                  <col class="funnel-col-rate" />
+                  <col class="funnel-col-rate" />
+                  <col class="funnel-col-rate" />
+                  <col class="funnel-col-rate" />
+                  <col class="funnel-col-metric" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th class="col-account">国家</th>
+                    <th class="sortable col-spend" @click="sortFunnelColumn('spend', $event)">花费 {{ funnelSortIcon('spend') }}</th>
+                    <th class="sortable col-spend" @click="sortFunnelColumn('purchases', $event)">D0 转化 {{ funnelSortIcon('purchases') }}</th>
+                    <th class="sortable col-spend" @click="sortFunnelColumn('revenue', $event)">D0 收入 {{ funnelSortIcon('revenue') }}</th>
+                    <th class="sortable col-roas" @click="sortFunnelColumn('roas', $event)">D0 ROAS {{ funnelSortIcon('roas') }}</th>
+                    <th class="sortable col-rate" @click="sortFunnelColumn('impressionToView', $event)">展示→浏览 {{ funnelSortIcon('impressionToView') }}</th>
+                    <th class="sortable col-rate" @click="sortFunnelColumn('viewToCart', $event)">浏览→加购 {{ funnelSortIcon('viewToCart') }}</th>
+                    <th class="sortable col-rate" @click="sortFunnelColumn('cartToCheckout', $event)">加购→结账 {{ funnelSortIcon('cartToCheckout') }}</th>
+                    <th class="sortable col-rate" @click="sortFunnelColumn('checkoutToPurchase', $event)">结账→D0 {{ funnelSortIcon('checkoutToPurchase') }}</th>
+                    <th class="sortable col-rate" @click="sortFunnelColumn('payRate', $event)">D0 付费率 {{ funnelSortIcon('payRate') }}</th>
+                    <th class="sortable col-spend" @click="sortFunnelColumn('usCpm', $event)">CPM {{ funnelSortIcon('usCpm') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="c in sortedFunnelTable" :key="c.country" :class="{ active: funnelCountry === c.country }">
+                    <td class="account-cell" @click="funnelCountry = c.country">{{ c.country }}</td>
+                    <td class="col-spend">{{ formatCurrencyInteger(c.spend) }}</td>
+                    <td class="col-spend">{{ formatNumber(c.purchases, 0) }}</td>
+                    <td class="col-spend">{{ formatCurrencyInteger(c.revenue) }}</td>
+                    <td class="col-roas"><span :class="roasClass(c.roas)">{{ formatNumber(c.roas, 2) }}</span></td>
+                    <td class="col-rate">{{ formatPercent(c.funnelRates.impressionToView) }}</td>
+                    <td class="col-rate">{{ formatPercent(c.funnelRates.viewToCart) }}</td>
+                    <td class="col-rate">{{ formatPercent(c.funnelRates.cartToCheckout) }}</td>
+                    <td class="col-rate">{{ formatPercent(c.funnelRates.checkoutToPurchase) }}</td>
+                    <td class="col-rate">{{ formatPercent(c.funnelRates.payRate) }}</td>
+                    <td class="col-spend">{{ formatCurrencyInteger(c.usCpm) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <!-- FB account funnel table -->
+              <table v-else class="funnel-table funnel-table-main">
                 <colgroup>
                   <col class="funnel-col-account" />
                   <col class="funnel-col-optimizer" />
@@ -296,7 +365,35 @@
               </div>
               <div class="funnel-table-footer">
                 <div class="funnel-table-footer-inner">
-                <table class="funnel-table funnel-table-summary">
+                <table v-if="isApplovin" class="funnel-table funnel-table-summary">
+                  <colgroup>
+                    <col class="funnel-col-account" />
+                    <col class="funnel-col-metric" />
+                    <col class="funnel-col-metric" />
+                    <col class="funnel-col-metric" />
+                    <col class="funnel-col-metric" />
+                    <col class="funnel-col-rate" />
+                    <col class="funnel-col-rate" />
+                    <col class="funnel-col-rate" />
+                    <col class="funnel-col-rate" />
+                    <col class="funnel-col-rate" />
+                    <col class="funnel-col-metric" />
+                  </colgroup>
+                  <tr class="summary-row" :class="{ active: !funnelCountry }">
+                    <td class="account-cell" @click="funnelCountry = ''">{{ funnelSummaryRow.country }}</td>
+                    <td class="col-spend">{{ formatCurrencyExact(funnelSummaryRow.spend) }}</td>
+                    <td class="col-spend">{{ formatNumber(funnelSummaryRow.purchases, 0) }}</td>
+                    <td class="col-spend">{{ formatCurrencyExact(funnelSummaryRow.revenue) }}</td>
+                    <td class="col-roas"><span :class="roasClass(funnelSummaryRow.roas)">{{ formatNumber(funnelSummaryRow.roas, 2) }}</span></td>
+                    <td class="col-rate">{{ formatPercent(funnelSummaryRow.funnelRates.impressionToView) }}</td>
+                    <td class="col-rate">{{ formatPercent(funnelSummaryRow.funnelRates.viewToCart) }}</td>
+                    <td class="col-rate">{{ formatPercent(funnelSummaryRow.funnelRates.cartToCheckout) }}</td>
+                    <td class="col-rate">{{ formatPercent(funnelSummaryRow.funnelRates.checkoutToPurchase) }}</td>
+                    <td class="col-rate">{{ formatPercent(funnelSummaryRow.funnelRates.payRate) }}</td>
+                    <td class="col-spend">{{ formatCurrencyInteger(funnelSummaryRow.usCpm) }}</td>
+                  </tr>
+                </table>
+                <table v-else class="funnel-table funnel-table-summary">
                   <colgroup>
                     <col class="funnel-col-account" />
                     <col class="funnel-col-optimizer" />
@@ -338,7 +435,7 @@
             </div>
           </div>
         </section>
-        </div>
+        </template>
 
         <section class="panel country-panel">
           <div class="panel-header">
@@ -364,12 +461,14 @@
                   <span class="col-selectable">国家</span>
                   <span>花费</span>
                   <span>ROAS</span>
+                  <span v-if="isApplovin" class="col-trend">趋势</span>
                 </div>
                 <div v-if="!countryTiers.t1.length" class="country-tier-empty">暂无数据</div>
-                <div v-for="c in countryTiers.t1" :key="c.country" class="country-tier-item">
+                <div v-for="c in countryTiers.t1" :key="c.country" class="country-tier-item" :class="{ 'has-trend': isApplovin }">
                   <span class="country-code">{{ c.country }}</span>
                   <span class="country-spend">{{ formatCurrencyInteger(c.spend) }}</span>
                   <span class="country-roas" :class="roasClass(c.roas)">{{ formatNumber(c.roas, 2) }}</span>
+                  <span v-if="isApplovin" class="country-trend"><button type="button" class="btn-detail" @click="openCountryDetail(c)">每日趋势</button></span>
                 </div>
               </div>
             </div>
@@ -383,12 +482,14 @@
                   <span class="col-selectable">国家</span>
                   <span>花费</span>
                   <span>ROAS</span>
+                  <span v-if="isApplovin" class="col-trend">趋势</span>
                 </div>
                 <div v-if="!countryTiers.t2.length" class="country-tier-empty">暂无数据</div>
-                <div v-for="c in countryTiers.t2" :key="c.country" class="country-tier-item">
+                <div v-for="c in countryTiers.t2" :key="c.country" class="country-tier-item" :class="{ 'has-trend': isApplovin }">
                   <span class="country-code">{{ c.country }}</span>
                   <span class="country-spend">{{ formatCurrencyInteger(c.spend) }}</span>
                   <span class="country-roas" :class="roasClass(c.roas)">{{ formatNumber(c.roas, 2) }}</span>
+                  <span v-if="isApplovin" class="country-trend"><button type="button" class="btn-detail" @click="openCountryDetail(c)">每日趋势</button></span>
                 </div>
               </div>
             </div>
@@ -402,12 +503,14 @@
                   <span class="col-selectable">国家</span>
                   <span>花费</span>
                   <span>ROAS</span>
+                  <span v-if="isApplovin" class="col-trend">趋势</span>
                 </div>
                 <div v-if="!countryTiers.t3.length" class="country-tier-empty">暂无数据</div>
-                <div v-for="c in countryTiers.t3" :key="c.country" class="country-tier-item">
+                <div v-for="c in countryTiers.t3" :key="c.country" class="country-tier-item" :class="{ 'has-trend': isApplovin }">
                   <span class="country-code">{{ c.country }}</span>
                   <span class="country-spend">{{ formatCurrencyInteger(c.spend) }}</span>
                   <span class="country-roas" :class="roasClass(c.roas)">{{ formatNumber(c.roas, 2) }}</span>
+                  <span v-if="isApplovin" class="country-trend"><button type="button" class="btn-detail" @click="openCountryDetail(c)">每日趋势</button></span>
                 </div>
               </div>
             </div>
@@ -418,15 +521,14 @@
           <div class="panel-header">
             <div>
               <h2>近 {{ headCreativeWindow }} 天头部素材</h2>
-              <p class="hint">近 {{ headCreativeWindow }} 天累计消耗 &gt; $1,000 且累计 ROAS &gt; 0.3 · 按总消耗倒序</p>
+              <p class="hint">近 {{ headCreativeWindow }} 天累计消耗 &gt; $1,000{{ potentialHintRoas }} · 按总消耗倒序</p>
             </div>
             <div class="btn-group">
               <button type="button" :class="{ active: headCreativeWindow === 3 }" @click="headCreativeWindow = 3">近 3 天</button>
               <button type="button" :class="{ active: headCreativeWindow === 7 }" @click="headCreativeWindow = 7">近 7 天</button>
             </div>
           </div>
-          <p v-if="!deferredReady" class="section-loading-hint">正在加载素材数据…</p>
-          <div v-else class="table-wrap potential-table-wrap">
+          <div class="table-wrap potential-table-wrap">
             <table class="selectable-table">
               <thead @dblclick="onTableHeadClick($event, 'potential')">
                 <tr>
@@ -443,7 +545,7 @@
               </thead>
               <tbody>
                 <tr v-if="!potentialCreatives.length">
-                  <td colspan="9" class="empty-cell">暂无符合「近{{ headCreativeWindow }}天消耗&gt;$1,000 且 ROAS&gt;0.3」条件的素材</td>
+                  <td colspan="9" class="empty-cell">暂无符合「近{{ headCreativeWindow }}天消耗&gt;$1,000{{ potentialHintRoas }}」条件的素材</td>
                 </tr>
                 <tr v-for="item in potentialCreatives" :key="item.creative + '-' + headCreativeWindow">
                   <td class="creative-full-name copyable" @click="copyText(item.creative, $event)">{{ item.creative }}</td>
@@ -496,8 +598,7 @@
             </div>
           </div>
 
-          <p v-if="!deferredReady" class="section-loading-hint">正在加载对比数据…</p>
-          <div v-else class="compare-table">
+          <div class="compare-table">
             <div class="compare-table-head" @dblclick="onCompareColumnClick($event)">
               <div class="compare-col-name col-selectable">素材名称</div>
               <div class="compare-col-bar">指标对比</div>
@@ -576,8 +677,7 @@
             </span>
           </div>
 
-          <p v-if="!deferredReady" class="section-loading-hint">正在加载生命周期数据…</p>
-          <div v-else class="table-wrap lifecycle-table-wrap">
+          <div class="table-wrap lifecycle-table-wrap">
             <table class="lifecycle-table selectable-table">
               <thead @dblclick="onTableHeadClick($event, 'lifecycle')">
                 <tr>
@@ -659,12 +759,16 @@
           <div class="modal-card">
             <div class="modal-header">
               <div>
-                <h3>素材每日表现</h3>
-                <p class="modal-sub">固定显示过去 14 天 · 受优化师/账户/国家筛选影响</p>
+                <h3 v-if="detailModal.type === 'country'">国家每日表现</h3>
+                <h3 v-else>素材每日表现</h3>
+                <p class="modal-sub">{{ isApplovin ? '固定显示过去 14 天 · 受账户/国家筛选影响' : '固定显示过去 14 天 · 受优化师/账户/国家筛选影响' }}</p>
               </div>
               <button type="button" class="modal-close" @click="closeCreativeDetail">✕</button>
             </div>
-            <div class="modal-creative-row">
+            <div v-if="detailModal.type === 'country'" class="modal-creative-row">
+              <p class="modal-country-label">{{ detailModal.country }}</p>
+            </div>
+            <div v-else class="modal-creative-row">
               <p class="modal-creative" :title="detailModal.creative">{{ detailModal.creative }}</p>
               <button type="button" class="btn-copy" @click="copyText(detailModal.creative, $event)">复制素材名</button>
             </div>
@@ -677,7 +781,7 @@
 
   <script>
     (function () {
-      var BUILD = '20260618-4';
+      var BUILD = '20260618-7';
       var appEl = document.getElementById('app');
 
       function showBootError(message) {
@@ -718,21 +822,22 @@
         'https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js',
         'https://unpkg.com/vue@3/dist/vue.global.prod.js',
       ];
-      var echartsUrls = [
-        'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js',
-        'https://unpkg.com/echarts@5/dist/echarts.min.js',
-      ];
-      var localScripts = [
+      var parallelLocalScripts = [
         './js/utils.js?v=' + BUILD,
+        './js/platform-config.js?v=' + BUILD,
         './js/auth.js?v=' + BUILD,
+      ];
+      var sequentialLocalScripts = [
         './js/data-store.js?v=' + BUILD,
         './js/app.js?v=' + BUILD,
       ];
 
       loadFirst(vueUrls, 'Vue')
-        .then(function () { return loadFirst(echartsUrls, 'ECharts'); })
         .then(function () {
-          return localScripts.reduce(function (chain, src) {
+          return Promise.all(parallelLocalScripts.map(loadScript));
+        })
+        .then(function () {
+          return sequentialLocalScripts.reduce(function (chain, src) {
             return chain.then(function () { return loadScript(src); });
           }, Promise.resolve());
         })

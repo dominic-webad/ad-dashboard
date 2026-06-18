@@ -63,6 +63,13 @@
     return Number.isNaN(d.getTime()) ? null : d;
   }
 
+  function formatLocalIsoDate(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
   function daysBetween(a, b) {
     var da = parseDate(a);
     var db = parseDate(b);
@@ -145,6 +152,19 @@
     };
   }
 
+  function buildApplovinFunnelRates(funnel) {
+    return {
+      impressionToView: funnelRate(funnel.landingPageViews, funnel.impressions),
+      viewToCart: funnelRate(funnel.addsToCart, funnel.landingPageViews),
+      cartToCheckout: funnelRate(funnel.checkoutsInitiated, funnel.addsToCart),
+      checkoutToPurchase: funnelRate(funnel.purchases, funnel.checkoutsInitiated),
+      viewToPurchase: funnelRate(funnel.purchases, funnel.landingPageViews),
+      impressionToPurchase: funnelRate(funnel.purchases, funnel.impressions),
+      payRate: funnelRate(funnel.purchases, funnel.landingPageViews),
+      usPayRate: funnelRate(funnel.usPurchases || 0, funnel.usImpressions || 0),
+    };
+  }
+
   function buildLastNDays(endDay, n) {
     var end = parseDate(endDay);
     if (!end) return [];
@@ -152,9 +172,22 @@
     for (var i = n - 1; i >= 0; i--) {
       var d = new Date(end);
       d.setDate(end.getDate() - i);
-      days.push(d.toISOString().slice(0, 10));
+      days.push(formatLocalIsoDate(d));
     }
     return days;
+  }
+
+  function fillLastNDaysSeries(series, endDay, n) {
+    var dayList = buildLastNDays(endDay, n);
+    if (!dayList.length) return series || [];
+    var map = new Map();
+    (series || []).forEach(function (d) {
+      map.set(toIsoDate(d.day), d);
+    });
+    return dayList.map(function (day) {
+      if (map.has(day)) return map.get(day);
+      return { day: day, spend: 0, conversionValue: 0, purchases: 0, roas: 0, d7Roas: 0 };
+    });
   }
 
   function findRisingCreatives(records, latestDay, windowDays) {
@@ -582,6 +615,9 @@
     getWeekKey: getWeekKey,
     getMonthKey: getMonthKey,
     buildLastNDays: buildLastNDays,
+    fillLastNDaysSeries: fillLastNDaysSeries,
+    buildApplovinFunnelRates: buildApplovinFunnelRates,
+    formatLocalIsoDate: formatLocalIsoDate,
     parseLaunchFromCreative: parseLaunchFromCreative,
     PHASE_LABELS: PHASE_LABELS,
     aggregateByTime: aggregateByTime,

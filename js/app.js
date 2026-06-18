@@ -18,6 +18,10 @@
     showFatalError('页面加载失败', 'utils.js 加载失败，请刷新页面');
     return;
   }
+  if (typeof window.AdPlatformConfig === 'undefined') {
+    showFatalError('页面加载失败', 'platform-config.js 加载失败，请刷新页面');
+    return;
+  }
 
   var U = window.AdUtils;
   var createApp = Vue.createApp;
@@ -32,6 +36,14 @@
       var loading = ref(true);
       var error = ref('');
       var store = ref(null);
+      var platform = ref('fb');
+      var manifestCache = ref({});
+      var platformMonthCache = ref({});
+      var platformStoreCache = ref({});
+      var platformUiCache = {};
+      var mergedKeyByPlatform = {};
+      var monthSyncToken = 0;
+      var isBootstrapping = false;
       var granularity = ref('day');
       var compareMetric = ref('spend');
       var topN = ref(15);
@@ -45,19 +57,20 @@
       var copyToastTimer = null;
       var selectedColumnText = ref('');
       var funnelAccount = ref('');
+      var funnelCountry = ref('');
       var funnelSortKey = ref('spend');
       var funnelSortDir = ref('desc');
       var accountSearch = ref('');
       var countrySearch = ref('');
       var accountDropdownOpen = ref(false);
       var countryDropdownOpen = ref(false);
-      var detailModal = ref({ show: false, creative: '' });
+      var detailModal = ref({ show: false, type: 'creative', creative: '', country: '' });
+      var detailQueryFilter = ref(null);
       var kpiTrendModal = ref({ show: false, label: '', metricKey: '', kind: 'kpi', accent: '#60a5fa' });
       var authUser = ref(null);
       var showLoginModal = ref(false);
       var loginForm = ref({ username: '', password: '' });
       var loginError = ref('');
-      var deferredReady = ref(false);
       var echartsPromise = null;
 
       var filters = ref({
@@ -82,23 +95,46 @@
       var datePresetCompare = ref('last7');
       var datePresetLifecycle = ref('last7');
 
+      var platformConfig = computed(function () {
+        return window.AdPlatformConfig.getPlatform(platform.value);
+      });
+
+      var platformList = computed(function () {
+        return window.AdPlatformConfig.listPlatforms();
+      });
+
+      var isApplovin = computed(function () {
+        return platform.value === 'applovin';
+      });
+
+      var canViewCore = computed(function () {
+        return window.AdAuth && window.AdAuth.canViewCoreData(authUser.value, platform.value);
+      });
+
+      var canViewFunnel = computed(function () {
+        var gate = platformConfig.value.authGate.funnel;
+        if (gate === false) return true;
+        return canViewCore.value;
+      });
+
       var meta = computed(function () {
         return store.value && store.value.meta ? store.value.meta : {};
       });
 
-      function scheduleIdle(fn) {
-        if (typeof requestIdleCallback === 'function') {
-          requestIdleCallback(fn, { timeout: 900 });
-        } else {
-          setTimeout(fn, 0);
+      var manifestDateRange = computed(function () {
+        var manifest = manifestCache.value[platform.value];
+        if (!manifest || !manifest.months || !manifest.months.length) {
+          return meta.value.dateRange || { min: '', max: '' };
         }
-      }
-
-      function scheduleDeferredSections() {
-        scheduleIdle(function () {
-          deferredReady.value = true;
+        var min = '';
+        var max = '';
+        manifest.months.forEach(function (m) {
+          var dr = m.dateRange || {};
+          if (dr.min && (!min || dr.min < min)) min = dr.min;
+          if (dr.max && (!max || dr.max > max)) max = dr.max;
         });
-      }
+        return { min: min, max: max };
+      });
 
       function loadEcharts() {
         if (window.echarts) return Promise.resolve(window.echarts);
@@ -135,28 +171,313 @@
         return echartsPromise;
       }
 
-      function getDataUrl() {
-        try {
-          var version = localStorage.getItem('ad_dashboard_data_version');
-          if (version) return './public/data.json?v=' + encodeURIComponent(version);
-        } catch (e) { /* ignore */ }
-        return './public/data.json';
+      function getManifestUrl(platformId) {
+        return './public/' + platformId + '/manifest.json';
       }
 
-      function rememberDataVersion(data) {
+      function getDataUrl(platformId, monthId) {
+        var manifest = manifestCache.value[platformId];
+        var file = monthId + '.json';
+        if (manifest && manifest.months) {
+          var entry = manifest.months.find(function (m) { return m.id === monthId; });
+          if (entry && entry.file) file = entry.file;
+        }
         try {
-          if (data && data.meta && data.meta.generatedAt) {
-            localStorage.setItem('ad_dashboard_data_version', data.meta.generatedAt);
-          }
+          var version = localStorage.getItem('ad_dashboard_' + platformId + '_' + monthId);
+          if (version) return './public/' + platformId + '/' + file + '?v=' + encodeURIComponent(version);
         } catch (e) { /* ignore */ }
+        return './public/' + platformId + '/' + file;
+      }
+
+      function rememberDataVersion(platformId, manifest) {
+        try {
+          var generatedAt = manifest && manifest.generatedAt;
+          if (!generatedAt) return;
+          localStorage.setItem('ad_dashboard_' + platformId + '_version', generatedAt);
+          (manifest.months || []).forEach(function (m) {
+            localStorage.setItem('ad_dashboard_' + platformId + '_' + m.id, generatedAt);
+          });
+        } catch (e) { /* ignore */ }
+      }
+
+      function getMergedKey(platformId) {
+        var cache = getPlatformMonthCache(platformId);
+        return platformId + '|' + Object.keys(cache.months).sort().join(',');
+      }
+
+      function buildStorePayload(chunks, manifest) {
+        if (chunks.length === 1) {
+          var chunk = chunks[0];
+          var chunkMeta = chunk.meta || {};
+          return {
+            meta: Object.assign({}, chunkMeta, {
+              generatedAt: manifest.generatedAt || chunkMeta.generatedAt,
+              totalRecords: chunkMeta.totalRecords || (chunk.rows ? chunk.rows.length : 0),
+              sourceFiles: manifest.sourceFiles || chunkMeta.sourceFiles || [],
+              dateRange: chunkMeta.dateRange || { min: '', max: '' },
+              platform: manifest.platform || chunkMeta.platform || platform.value,
+              compact: true,
+            }),
+            days: chunk.days,
+            accounts: chunk.accounts,
+            creatives: chunk.creatives,
+            rows: chunk.rows,
+          };
+        }
+        return mergePlatformMonthData(chunks, manifest);
+      }
+
+      function mergePlatformMonthData(chunks, manifest) {
+        var daySet = new Set();
+        var accountSet = new Set();
+        var creativeSet = new Set();
+        var allRows = [];
+
+        chunks.forEach(function (data) {
+          if (!data || !data.rows) return;
+          data.days.forEach(function (d) { daySet.add(d); });
+          data.accounts.forEach(function (a) { accountSet.add(a); });
+          data.creatives.forEach(function (c) { creativeSet.add(c); });
+          data.rows.forEach(function (row) {
+            allRows.push({
+              day: data.days[row[0]],
+              account: data.accounts[row[1]],
+              country: row[2],
+              creative: data.creatives[row[3]],
+              cells: row.slice(4),
+            });
+          });
+        });
+
+        var dayList = Array.from(daySet).sort();
+        var accountList = Array.from(accountSet).sort();
+        var creativeList = Array.from(creativeSet).sort();
+        var dayMap = new Map(dayList.map(function (d, i) { return [d, i]; }));
+        var accountMap = new Map(accountList.map(function (a, i) { return [a, i]; }));
+        var creativeMap = new Map(creativeList.map(function (c, i) { return [c, i]; }));
+
+        var compactRows = allRows.map(function (r) {
+          return [
+            dayMap.get(r.day),
+            accountMap.get(r.account),
+            r.country,
+            creativeMap.get(r.creative),
+          ].concat(r.cells);
+        });
+
+        var countries = Array.from(new Set(compactRows.map(function (r) { return r[2]; }))).sort();
+        var baseMeta = (chunks[0] && chunks[0].meta) || {};
+
+        return {
+          meta: Object.assign({}, baseMeta, {
+            generatedAt: manifest.generatedAt || baseMeta.generatedAt,
+            totalRecords: compactRows.length,
+            sourceFiles: manifest.sourceFiles || baseMeta.sourceFiles || [],
+            dateRange: {
+              min: dayList[0] || '',
+              max: dayList[dayList.length - 1] || '',
+            },
+            platform: manifest.platform || baseMeta.platform || platform.value,
+            accounts: accountList,
+            countries: countries,
+            compact: true,
+          }),
+          days: dayList,
+          accounts: accountList,
+          creatives: creativeList,
+          rows: compactRows,
+        };
+      }
+
+      function monthIdFromDay(day) {
+        return day && day.length >= 7 ? day.slice(0, 7) : '';
+      }
+
+      function prevMonthId(monthId) {
+        if (!monthId) return '';
+        var parts = monthId.split('-');
+        var y = parseInt(parts[0], 10);
+        var m = parseInt(parts[1], 10) - 1;
+        if (m < 1) {
+          m = 12;
+          y -= 1;
+        }
+        return y + '-' + String(m).padStart(2, '0');
+      }
+
+      function getLatestMonthId(manifest) {
+        if (!manifest || !manifest.months || !manifest.months.length) return '';
+        if (manifest.defaultMonth) return manifest.defaultMonth;
+        var ids = manifest.months.map(function (m) { return m.id; }).sort();
+        return ids[ids.length - 1];
+      }
+
+      function getInitialMonthIds(manifest) {
+        var latest = getLatestMonthId(manifest);
+        var available = new Set((manifest.months || []).map(function (m) { return m.id; }));
+        var ids = [];
+        var prev = prevMonthId(latest);
+        if (available.has(prev)) ids.push(prev);
+        if (available.has(latest)) ids.push(latest);
+        if (!ids.length && latest) ids.push(latest);
+        return ids;
+      }
+
+      function getMonthIdsForRange(start, end, manifest) {
+        if (!start || !end || !manifest || !manifest.months) return [];
+        return manifest.months.filter(function (m) {
+          var dr = m.dateRange || {};
+          var min = dr.min || m.id + '-01';
+          var max = dr.max || m.id + '-31';
+          return max >= start && min <= end;
+        }).map(function (m) { return m.id; }).sort();
+      }
+
+      function getPlatformMonthCache(platformId) {
+        if (!platformMonthCache.value[platformId]) {
+          var next = Object.assign({}, platformMonthCache.value);
+          next[platformId] = { months: {} };
+          platformMonthCache.value = next;
+        }
+        return platformMonthCache.value[platformId];
+      }
+
+      function fetchMonthJson(platformId, monthId) {
+        return fetch(getDataUrl(platformId, monthId)).then(function (res) {
+          if (!res.ok) throw new Error('无法加载 ' + monthId + ' 数据');
+          return res.json();
+        });
+      }
+
+      function applyMergedStore(platformId, manifest, resetFiltersFlag) {
+        var mergeKey = getMergedKey(platformId);
+        if (!resetFiltersFlag && mergeKey === mergedKeyByPlatform[platformId] && store.value) {
+          loading.value = false;
+          return Promise.resolve();
+        }
+
+        var cache = getPlatformMonthCache(platformId);
+        var chunks = Object.keys(cache.months).sort().map(function (id) {
+          return cache.months[id];
+        });
+        var data = buildStorePayload(chunks, manifest);
+
+        try {
+          store.value = window.createDataStore(data);
+          if (!store.value) {
+            throw new Error('数据格式无效');
+          }
+          mergedKeyByPlatform[platformId] = mergeKey;
+          rememberDataVersion(platformId, manifest);
+          var nextStoreCache = Object.assign({}, platformStoreCache.value);
+          nextStoreCache[platformId] = store.value;
+          platformStoreCache.value = nextStoreCache;
+          if (resetFiltersFlag) {
+            isBootstrapping = true;
+            resetFilters();
+            isBootstrapping = false;
+          }
+          loading.value = false;
+          return Promise.resolve();
+        } catch (err) {
+          return Promise.reject(err);
+        }
+      }
+
+      function fetchAndMergeMonths(platformId, monthIds, manifest, resetFiltersFlag) {
+        var cache = getPlatformMonthCache(platformId);
+        var availableIds = new Set((manifest.months || []).map(function (m) { return m.id; }));
+        var toFetch = monthIds.filter(function (id) {
+          return availableIds.has(id) && !cache.months[id];
+        });
+
+        function finish() {
+          var mergeKey = getMergedKey(platformId);
+          if (!toFetch.length && !resetFiltersFlag && mergeKey === mergedKeyByPlatform[platformId] && store.value) {
+            loading.value = false;
+            return Promise.resolve();
+          }
+          return applyMergedStore(platformId, manifest, resetFiltersFlag);
+        }
+
+        if (!toFetch.length) return finish();
+        return Promise.all(toFetch.map(function (id) {
+          return fetchMonthJson(platformId, id).then(function (data) {
+            cache.months[id] = data;
+          });
+        })).then(finish);
+      }
+
+      function collectNeededMonthIds(manifest) {
+        var ranges = [
+          { start: filters.value.dateStart, end: filters.value.dateEnd },
+          { start: compareFilters.value.dateStart, end: compareFilters.value.dateEnd },
+          { start: lifecycleFilters.value.dateStart, end: lifecycleFilters.value.dateEnd },
+        ];
+        var idSet = new Set();
+        ranges.forEach(function (range) {
+          if (range.start && range.end) {
+            getMonthIdsForRange(range.start, range.end, manifest).forEach(function (id) {
+              idSet.add(id);
+            });
+          }
+        });
+        getInitialMonthIds(manifest).forEach(function (id) { idSet.add(id); });
+        return Array.from(idSet).sort();
+      }
+
+      function syncMonthsForActiveRanges() {
+        if (isBootstrapping) return Promise.resolve();
+        var manifest = manifestCache.value[platform.value];
+        if (!manifest || loading.value || !store.value) return Promise.resolve();
+        var token = ++monthSyncToken;
+        var monthIds = collectNeededMonthIds(manifest);
+        return fetchAndMergeMonths(platform.value, monthIds, manifest, false)
+          .then(function () {
+            if (token !== monthSyncToken) return;
+            return nextTick();
+          })
+          .then(function () {
+            if (token !== monthSyncToken) return;
+            initCharts();
+            syncFunnelColumnWidths();
+          })
+          .catch(function (e) {
+            console.error('按需加载月份失败', e);
+          });
+      }
+
+      function getManifestDateRange() {
+        return manifestDateRange.value;
+      }
+
+      function loadManifest(platformId) {
+        if (manifestCache.value[platformId]) {
+          return Promise.resolve(manifestCache.value[platformId]);
+        }
+        return fetch(getManifestUrl(platformId))
+          .then(function (res) {
+            if (!res.ok) throw new Error('无法加载 ' + platformId + ' manifest');
+            return res.json();
+          })
+          .then(function (manifest) {
+            var next = Object.assign({}, manifestCache.value);
+            next[platformId] = manifest;
+            manifestCache.value = next;
+            rememberDataVersion(platformId, manifest);
+            return manifest;
+          });
       }
 
       function dimFilter() {
-        return {
-          optimizer: filters.value.optimizer,
+        var base = {
           accounts: filters.value.accounts,
           countries: filters.value.countries,
         };
+        if (platformConfig.value.filters.showOptimizer) {
+          base.optimizer = filters.value.optimizer;
+        }
+        return base;
       }
 
       function globalFilter() {
@@ -181,6 +502,9 @@
       }
 
       function dailyTrendFilter() {
+        if (platformConfig.value.detailModal.trendDaysFixed) {
+          return buildDetailTrendFilter();
+        }
         var range = resolveDatePreset('last14');
         return Object.assign({}, dimFilter(), {
           dateStart: range.start,
@@ -212,14 +536,40 @@
         return formatLocalIsoDate(new Date());
       }
 
+      function getYesterdayIso() {
+        var d = new Date();
+        d.setDate(d.getDate() - 1);
+        return formatLocalIsoDate(d);
+      }
+
+      var DETAIL_TREND_DAYS = 14;
+
+      function buildDetailTrendFilter(extraDims) {
+        var endDay = getYesterdayIso();
+        var dayList = U.buildLastNDays(endDay, DETAIL_TREND_DAYS);
+        return Object.assign({}, extraDims || {}, {
+          dateStart: dayList[0],
+          dateEnd: endDay,
+        });
+      }
+
       var globalBundle = computed(function () {
         if (!store.value || !store.value.queryBundle) return null;
         return store.value.queryBundle(globalFilter());
       });
 
       var protectedBundle = computed(function () {
-        if (!store.value || !store.value.queryBundle || !authUser.value) return null;
+        if (!store.value || !store.value.queryBundle || !canViewCore.value) return null;
+        if (isApplovin.value) {
+          return store.value.queryBundle(globalFilter());
+        }
         return store.value.queryBundle(protectedFilter());
+      });
+
+      var funnelBundle = computed(function () {
+        if (!canViewFunnel.value) return null;
+        if (isApplovin.value) return globalBundle.value;
+        return protectedBundle.value;
       });
 
       var isLoggedIn = computed(function () {
@@ -227,7 +577,7 @@
       });
 
       var protectedScopeHint = computed(function () {
-        if (!authUser.value) return '';
+        if (!authUser.value || isApplovin.value) return '';
         if (authUser.value.role === 'admin') return '全部数据';
         return authUser.value.displayName + ' + Creative';
       });
@@ -240,8 +590,23 @@
         return protectedBundle.value ? protectedBundle.value.summary : {};
       });
 
+      var funnelSummary = computed(function () {
+        return funnelBundle.value ? funnelBundle.value.summary : {};
+      });
+
       var kpiCards = computed(function () {
         var s = summary.value;
+        if (isApplovin.value) {
+          return [
+            { label: 'D0 ROAS', metricKey: 'roas', value: U.formatNumber(s.roas, 2), sub: '当日广告支出回报率', accent: '#60a5fa', icon: '📈' },
+            { label: 'D7 ROAS', metricKey: 'd7Roas', value: U.formatNumber(s.d7Roas, 2), sub: '7 日广告支出回报率', accent: '#34d399', icon: '📊' },
+            { label: '消耗', metricKey: 'spend', value: U.formatCurrencyExact(s.spend), sub: U.formatNumber(s.impressions, 0) + ' 展示', accent: '#f472b6', icon: '💰' },
+            { label: 'D0 转化', metricKey: 'purchases', value: U.formatNumber(s.purchases, 0), sub: 'D0 结账次数', accent: '#a78bfa', icon: '🎯' },
+            { label: '转化成本', metricKey: 'cpa', value: U.formatCurrency(s.cpa), sub: 'CPA (D0)', accent: '#fbbf24', icon: '💵' },
+            { label: 'CPM', metricKey: 'cpm', value: U.formatCurrency(s.cpm), sub: '千次展示成本', accent: '#fb923c', icon: '📺' },
+            { label: 'CPC', metricKey: 'cpc', value: U.formatCurrency(s.cpc), sub: '单次点击成本', accent: '#38bdf8', icon: '🔗' },
+          ];
+        }
         return [
           { label: 'ROAS', metricKey: 'roas', value: U.formatNumber(s.roas, 2), sub: '广告支出回报率', accent: '#60a5fa', icon: '📈' },
           { label: '消耗', metricKey: 'spend', value: U.formatCurrencyExact(s.spend), sub: U.formatNumber(s.impressions, 0) + ' 展示', accent: '#f472b6', icon: '💰' },
@@ -258,8 +623,16 @@
       });
 
       var funnelKpiCards = computed(function () {
-        var s = summary.value;
+        var s = funnelSummary.value;
         var rates = s.funnelRates || {};
+        if (isApplovin.value) {
+          return [
+            { label: '浏览 → 加购', metricKey: 'viewToCart', value: U.formatPercent(rates.viewToCart), sub: '加购转化率', accent: '#34d399' },
+            { label: '加购 → 结账', metricKey: 'cartToCheckout', value: U.formatPercent(rates.cartToCheckout), sub: '结账发起率', accent: '#a78bfa' },
+            { label: '结账 → D0 购买', metricKey: 'checkoutToPurchase', value: U.formatPercent(rates.checkoutToPurchase), sub: 'D0 购买转化率', accent: '#f472b6' },
+            { label: '浏览 → D0 购买', metricKey: 'viewToPurchase', value: U.formatPercent(rates.viewToPurchase), sub: '全链路转化率', accent: '#60a5fa' },
+          ];
+        }
         return [
           { label: 'Click → LPV', metricKey: 'clickToLpv', value: U.formatPercent(rates.clickToLpv), sub: '落地页访问率', accent: '#38bdf8' },
           { label: 'LPV → 加购', metricKey: 'lpvToCart', value: U.formatPercent(rates.lpvToCart), sub: '加购转化率', accent: '#34d399' },
@@ -271,7 +644,7 @@
       });
 
       var funnelDailyTrend = computed(function () {
-        return protectedBundle.value ? protectedBundle.value.funnelByDay : [];
+        return funnelBundle.value ? funnelBundle.value.funnelByDay : [];
       });
 
       var trendData = computed(function () {
@@ -280,25 +653,17 @@
       });
 
       var lifecycleBundle = computed(function () {
-        if (!deferredReady.value || !store.value || !store.value.queryBundle) return null;
+        if (!store.value || !store.value.queryBundle) return null;
         return store.value.queryBundle(lifecycleFilter());
       });
 
-      var lifecycleAllTimeBundle = computed(function () {
-        if (!store.value) return null;
-        return store.value.allTimeBundle || null;
-      });
-
-      var lifecycleLatestDay = computed(function () {
-        return lifecycleBundle.value ? lifecycleBundle.value.latestDay : '';
-      });
-
       var lifecycleClassifiedAll = computed(function () {
-        if (!store.value || !lifecycleBundle.value || !lifecycleAllTimeBundle.value) return [];
+        if (!store.value || !lifecycleBundle.value || !store.value.creativeDayMap) return [];
         return store.value.buildLifecycleDisplay(
           lifecycleBundle.value,
-          lifecycleAllTimeBundle.value,
-          getTodayIso()
+          store.value.creativeDayMap,
+          getTodayIso(),
+          store.value.dataLatestDay || getTodayIso()
         );
       });
 
@@ -347,7 +712,7 @@
       });
 
       var compareBundle = computed(function () {
-        if (!deferredReady.value || !store.value || !store.value.queryBundle) return null;
+        if (!store.value || !store.value.queryBundle) return null;
         return store.value.queryBundle(compareFilter());
       });
 
@@ -359,29 +724,36 @@
           .slice()
           .sort(function (a, b) { return b[metric] - a[metric]; })
           .slice(0, topN.value);
-        if (!store.value || !lifecycleAllTimeBundle.value) return sorted;
-        return store.value.attachRampDays(sorted, lifecycleAllTimeBundle.value, getTodayIso());
+        if (!store.value || !store.value.creativeDayMap) return sorted;
+        return store.value.attachRampDays(sorted, store.value.creativeDayMap, getTodayIso());
       });
 
       var potentialResult = computed(function () {
-        if (!deferredReady.value || !store.value || !globalBundle.value) {
+        if (!store.value || !globalBundle.value) {
           return { windowDays: headCreativeWindow.value, items: [] };
         }
+        var minRoas = platformConfig.value.headCreative.minRoas;
         return store.value.findRisingFromBundle(
           globalBundle.value.creativeDayMap,
           latestDay.value,
-          headCreativeWindow.value
+          headCreativeWindow.value,
+          minRoas
         );
       });
 
       var potentialCreatives = computed(function () {
         var items = potentialResult.value.items;
-        if (!store.value || !lifecycleAllTimeBundle.value || !items.length) return items;
-        return store.value.attachRampDays(items, lifecycleAllTimeBundle.value, getTodayIso());
+        if (!store.value || !store.value.creativeDayMap || !items.length) return items;
+        return store.value.attachRampDays(items, store.value.creativeDayMap, getTodayIso());
       });
 
       var potentialWindowDays = computed(function () {
         return potentialResult.value.windowDays;
+      });
+
+      var potentialHintRoas = computed(function () {
+        var minRoas = platformConfig.value.headCreative.minRoas;
+        return minRoas > 0 ? ' 且 ROAS>' + minRoas : '';
       });
 
       var compareMaxValue = computed(function () {
@@ -394,7 +766,11 @@
       });
 
       var funnelAccounts = computed(function () {
-        return protectedBundle.value ? protectedBundle.value.funnelAccounts : [];
+        return funnelBundle.value ? (funnelBundle.value.funnelAccounts || []) : [];
+      });
+
+      var funnelCountries = computed(function () {
+        return funnelBundle.value ? (funnelBundle.value.funnelCountries || []) : [];
       });
 
       var countryTiers = computed(function () {
@@ -419,7 +795,24 @@
       });
 
       var funnelSummaryRow = computed(function () {
-        var s = summary.value;
+        var s = funnelSummary.value;
+        if (isApplovin.value) {
+          return {
+            country: '全部国家（汇总）',
+            spend: s.spend,
+            revenue: s.conversionValue,
+            roas: s.roas,
+            impressions: s.impressions,
+            landingPageViews: s.landingPageViews,
+            addsToCart: s.addsToCart,
+            checkoutsInitiated: s.checkoutsInitiated,
+            addsPaymentInfo: s.addsPaymentInfo,
+            purchases: s.purchases,
+            funnelRates: s.funnelRates,
+            usCpm: s.usCpm || 0,
+            isSummary: true,
+          };
+        }
         return {
           accountName: '全部账号（汇总）',
           optimizer: '—',
@@ -439,6 +832,12 @@
       });
 
       var activeFunnel = computed(function () {
+        if (isApplovin.value) {
+          if (!funnelCountry.value) return funnelSummaryRow.value;
+          return funnelCountries.value.find(function (a) {
+            return a.country === funnelCountry.value;
+          }) || funnelSummaryRow.value;
+        }
         if (!funnelAccount.value) return funnelSummaryRow.value;
         return funnelAccounts.value.find(function (a) {
           return a.accountName === funnelAccount.value;
@@ -446,14 +845,16 @@
       });
 
       var sortedFunnelTable = computed(function () {
-        var list = funnelAccounts.value.slice();
+        var list = isApplovin.value
+          ? funnelCountries.value.slice()
+          : funnelAccounts.value.slice();
         var key = funnelSortKey.value;
         var dir = funnelSortDir.value === 'asc' ? 1 : -1;
 
         list.sort(function (a, b) {
           var av;
           var bv;
-          if (key === 'accountName' || key === 'optimizer') {
+          if (key === 'accountName' || key === 'optimizer' || key === 'country') {
             av = a[key] || '';
             bv = b[key] || '';
             return dir * String(av).localeCompare(String(bv));
@@ -485,8 +886,18 @@
       });
 
       var detailSeries = computed(function () {
-        if (!store.value || !detailModal.value.creative) return [];
-        return store.value.getCreativeDailySeries(detailModal.value.creative, dailyTrendFilter());
+        if (!store.value || !detailModal.value.show) return [];
+        var f = detailQueryFilter.value || dailyTrendFilter();
+        var raw = [];
+        if (detailModal.value.type === 'country' && detailModal.value.country) {
+          raw = store.value.getCountryDailySeries(detailModal.value.country, f);
+          if (platformConfig.value.detailModal.trendDaysFixed) {
+            return U.fillLastNDaysSeries(raw, getYesterdayIso(), DETAIL_TREND_DAYS);
+          }
+        } else if (detailModal.value.creative) {
+          raw = store.value.getCreativeDailySeries(detailModal.value.creative, f);
+        }
+        return raw;
       });
 
       var trendChart = null;
@@ -495,22 +906,34 @@
       var kpiTrendChart = null;
 
       function initCharts() {
-        if (isLoggedIn.value) ensureProtectedCharts();
-        syncFunnelColumnWidths();
+        if (canViewFunnel.value) ensureFunnelChart();
+        if (canViewCore.value) ensureProtectedCharts();
+      }
+
+      function ensureFunnelChart() {
+        loadEcharts().then(function () {
+          try {
+            var funnelEl = document.getElementById('funnel-chart');
+            if (funnelEl && window.echarts && !funnelChart) funnelChart = echarts.init(funnelEl);
+            renderFunnelChart();
+            syncFunnelColumnWidths();
+          } catch (err) {
+            console.error('漏斗图表初始化失败', err);
+          }
+        }).catch(function (err) {
+          console.error(err);
+        });
       }
 
       function ensureProtectedCharts() {
-        if (!isLoggedIn.value) return;
+        if (!canViewCore.value) return;
         loadEcharts().then(function () {
           try {
             var trendEl = document.getElementById('trend-chart');
-            var funnelEl = document.getElementById('funnel-chart');
             if (trendEl && window.echarts && !trendChart) trendChart = echarts.init(trendEl);
-            if (funnelEl && window.echarts && !funnelChart) funnelChart = echarts.init(funnelEl);
-            renderCharts();
-            syncFunnelColumnWidths();
+            renderTrendChart();
           } catch (err) {
-            console.error('图表初始化失败', err);
+            console.error('趋势图表初始化失败', err);
           }
         }).catch(function (err) {
           console.error(err);
@@ -522,9 +945,25 @@
           trendChart.dispose();
           trendChart = null;
         }
+      }
+
+      function disposeFunnelChart() {
         if (funnelChart) {
           funnelChart.dispose();
           funnelChart = null;
+        }
+      }
+
+      function disposeAllCharts() {
+        disposeProtectedCharts();
+        disposeFunnelChart();
+        if (detailChart) {
+          detailChart.dispose();
+          detailChart = null;
+        }
+        if (kpiTrendChart) {
+          kpiTrendChart.dispose();
+          kpiTrendChart = null;
         }
       }
 
@@ -552,7 +991,9 @@
         loginForm.value.password = '';
         loginError.value = '';
         showLoginModal.value = false;
-        nextTick().then(ensureProtectedCharts);
+        nextTick().then(function () {
+          initCharts();
+        });
       }
 
       function handleLogout() {
@@ -563,9 +1004,14 @@
         disposeProtectedCharts();
       }
 
+      function trendRoasLabel() {
+        return isApplovin.value ? 'D0 ROAS' : 'ROAS';
+      }
+
       function renderTrendChart() {
         if (!trendChart) return;
         var data = trendData.value;
+        var roasLabel = trendRoasLabel();
 
         trendChart.setOption({
           backgroundColor: 'transparent',
@@ -576,7 +1022,7 @@
             textStyle: { color: '#f1f5f9' },
           },
           legend: {
-            data: ['消耗', 'ROAS'],
+            data: ['消耗', roasLabel],
             textStyle: { color: '#94a3b8' },
             top: 0,
           },
@@ -597,7 +1043,7 @@
             },
             {
               type: 'value',
-              name: 'ROAS',
+              name: roasLabel,
               nameTextStyle: { color: '#34d399' },
               axisLabel: { color: '#34d399' },
               splitLine: { show: false },
@@ -612,7 +1058,7 @@
               barMaxWidth: 36,
             },
             {
-              name: 'ROAS',
+              name: roasLabel,
               type: 'line',
               yAxisIndex: 1,
               data: data.map(function (d) { return +d.roas.toFixed(4); }),
@@ -630,16 +1076,30 @@
         if (!funnelChart) return;
         var funnel = activeFunnel.value;
         if (!funnel) return;
-        var rates = funnel.funnelRates || summary.value.funnelRates || {};
+        var rates = funnel.funnelRates || funnelSummary.value.funnelRates || {};
+        var steps;
+        var maxVal;
 
-        var steps = [
-          { name: 'Click → LPV', value: funnel.clicks, rateLabel: U.formatPercent(rates.clickToLpv) },
-          { name: 'LPV → 加购', value: funnel.landingPageViews, rateLabel: U.formatPercent(rates.lpvToCart) },
-          { name: '加购 → 结账', value: funnel.addsToCart, rateLabel: U.formatPercent(rates.cartToCheckout) },
-          { name: '结账 → 支付', value: funnel.checkoutsInitiated, rateLabel: U.formatPercent(rates.checkoutToPay) },
-          { name: '支付 → 购买', value: funnel.addsPaymentInfo, rateLabel: U.formatPercent(rates.payToPurchase) },
-          { name: '付费率', value: funnel.purchases, rateLabel: U.formatPercent(rates.payRate) },
-        ];
+        if (isApplovin.value) {
+          steps = [
+            { name: '展示 → 浏览', value: funnel.impressions, rateLabel: U.formatPercent(rates.impressionToView) },
+            { name: '浏览 → 加购', value: funnel.landingPageViews, rateLabel: U.formatPercent(rates.viewToCart) },
+            { name: '加购 → 结账', value: funnel.addsToCart, rateLabel: U.formatPercent(rates.cartToCheckout) },
+            { name: '结账 → D0 购买', value: funnel.checkoutsInitiated, rateLabel: U.formatPercent(rates.checkoutToPurchase) },
+            { name: 'D0 付费率', value: funnel.purchases, rateLabel: U.formatPercent(rates.payRate) },
+          ];
+          maxVal = Math.max(funnel.impressions, 1);
+        } else {
+          steps = [
+            { name: 'Click → LPV', value: funnel.clicks, rateLabel: U.formatPercent(rates.clickToLpv) },
+            { name: 'LPV → 加购', value: funnel.landingPageViews, rateLabel: U.formatPercent(rates.lpvToCart) },
+            { name: '加购 → 结账', value: funnel.addsToCart, rateLabel: U.formatPercent(rates.cartToCheckout) },
+            { name: '结账 → 支付', value: funnel.checkoutsInitiated, rateLabel: U.formatPercent(rates.checkoutToPay) },
+            { name: '支付 → 购买', value: funnel.addsPaymentInfo, rateLabel: U.formatPercent(rates.payToPurchase) },
+            { name: '付费率', value: funnel.purchases, rateLabel: U.formatPercent(rates.payRate) },
+          ];
+          maxVal = Math.max(funnel.clicks, 1);
+        }
 
         funnelChart.setOption({
           backgroundColor: 'transparent',
@@ -661,7 +1121,7 @@
             bottom: 8,
             width: '84%',
             min: 0,
-            max: Math.max(funnel.clicks, 1),
+            max: maxVal,
             minSize: '8%',
             maxSize: '100%',
             sort: 'descending',
@@ -717,76 +1177,73 @@
         return lifecycleSortDir.value === 'asc' ? '↑' : '↓';
       }
 
-      function renderDetailChart() {
+      function renderDetailChart(preparedSeries) {
         var el = document.getElementById('detail-chart');
-        if (!el) return;
+        if (!el || !detailModal.value.show) return;
+        var series = preparedSeries || detailSeries.value;
         loadEcharts().then(function () {
+          if (!detailModal.value.show) return;
           if (detailChart) detailChart.dispose();
           detailChart = echarts.init(el);
 
-          var series = detailSeries.value;
+          var roasLabel = trendRoasLabel();
           detailChart.setOption({
-          backgroundColor: 'transparent',
-          tooltip: {
-            trigger: 'axis',
-            backgroundColor: '#1e293b',
-            borderColor: '#334155',
-            textStyle: { color: '#f1f5f9' },
-          },
-          legend: {
-            data: ['消耗', 'ROAS'],
-            textStyle: { color: '#94a3b8' },
-            top: 0,
-          },
-          grid: { left: 56, right: 56, top: 48, bottom: 48 },
-          xAxis: {
-            type: 'category',
-            data: series.map(function (d) { return U.formatDateDisplay(d.day); }),
-            axisLabel: { color: '#94a3b8' },
-            axisLine: { lineStyle: { color: '#334155' } },
-          },
-          yAxis: [
-            {
-              type: 'value',
-              name: '消耗 ($)',
-              nameTextStyle: { color: '#94a3b8' },
-              axisLabel: { color: '#94a3b8' },
-              splitLine: { lineStyle: { color: '#1e293b', type: 'dashed' } },
+            backgroundColor: 'transparent',
+            tooltip: {
+              trigger: 'axis',
+              backgroundColor: '#1e293b',
+              borderColor: '#334155',
+              textStyle: { color: '#f1f5f9' },
             },
-            {
-              type: 'value',
-              name: 'ROAS',
-              nameTextStyle: { color: '#94a3b8' },
-              axisLabel: { color: '#94a3b8' },
-              splitLine: { show: false },
+            legend: {
+              data: ['消耗', roasLabel],
+              textStyle: { color: '#94a3b8' },
+              top: 0,
             },
-          ],
-          series: [
-            {
-              name: '消耗',
-              type: 'bar',
-              data: series.map(function (d) { return +d.spend.toFixed(2); }),
-              itemStyle: { color: '#3b82f6', borderRadius: [4, 4, 0, 0] },
+            grid: { left: 56, right: 56, top: 48, bottom: series.length > 8 ? 64 : 48 },
+            xAxis: {
+              type: 'category',
+              data: series.map(function (d) { return U.formatDateDisplay(d.day); }),
+              axisLabel: { color: '#94a3b8', rotate: series.length > 8 ? 35 : 0, fontSize: 11 },
+              axisLine: { lineStyle: { color: '#334155' } },
             },
-            {
-              name: 'ROAS',
-              type: 'line',
-              yAxisIndex: 1,
-              data: series.map(function (d) { return +d.roas.toFixed(4); }),
-              smooth: true,
-              lineStyle: { width: 3, color: '#34d399' },
-              itemStyle: { color: '#34d399' },
-            },
-          ],
-        }, true);
+            yAxis: [
+              {
+                type: 'value',
+                name: '消耗 ($)',
+                nameTextStyle: { color: '#94a3b8' },
+                axisLabel: { color: '#94a3b8' },
+                splitLine: { lineStyle: { color: '#1e293b', type: 'dashed' } },
+              },
+              {
+                type: 'value',
+                name: roasLabel,
+                nameTextStyle: { color: '#94a3b8' },
+                axisLabel: { color: '#94a3b8' },
+                splitLine: { show: false },
+              },
+            ],
+            series: [
+              {
+                name: '消耗',
+                type: 'bar',
+                data: series.map(function (d) { return +d.spend.toFixed(2); }),
+                itemStyle: { color: '#3b82f6', borderRadius: [4, 4, 0, 0] },
+              },
+              {
+                name: roasLabel,
+                type: 'line',
+                yAxisIndex: 1,
+                data: series.map(function (d) { return +d.roas.toFixed(4); }),
+                smooth: true,
+                lineStyle: { width: 3, color: '#34d399' },
+                itemStyle: { color: '#34d399' },
+              },
+            ],
+          }, true);
         }).catch(function (err) {
           console.error(err);
         });
-      }
-
-      function renderCharts() {
-        renderTrendChart();
-        renderFunnelChart();
       }
 
       function compareBarWidth(item) {
@@ -856,8 +1313,9 @@
       }
 
       function normalizeDateRange(start, end) {
-        var min = meta.value.dateRange && meta.value.dateRange.min;
-        var max = meta.value.dateRange && meta.value.dateRange.max;
+        var manifestRange = getManifestDateRange();
+        var min = manifestRange.min || (meta.value.dateRange && meta.value.dateRange.min);
+        var max = manifestRange.max || (meta.value.dateRange && meta.value.dateRange.max);
         if (min && start < min) start = min;
         if (max && end > max) end = max;
         if (min && end < min) end = min;
@@ -1027,6 +1485,7 @@
         compareFilters.value = { dateStart: defaultRange.start, dateEnd: defaultRange.end };
         lifecycleFilters.value = { dateStart: defaultRange.start, dateEnd: defaultRange.end };
         funnelAccount.value = '';
+        funnelCountry.value = '';
         funnelSortKey.value = 'spend';
         funnelSortDir.value = 'desc';
         accountSearch.value = '';
@@ -1179,17 +1638,40 @@
       }
 
       function openCreativeDetail(item) {
+        detailQueryFilter.value = platformConfig.value.detailModal.trendDaysFixed
+          ? buildDetailTrendFilter()
+          : null;
         detailModal.value = {
           show: true,
+          type: 'creative',
           creative: item.creative,
+          country: '',
         };
+        var series = detailSeries.value;
         nextTick().then(function () {
-          renderDetailChart();
+          renderDetailChart(series);
+        });
+      }
+
+      function openCountryDetail(countryItem) {
+        detailQueryFilter.value = buildDetailTrendFilter({
+          countries: [countryItem.country],
+        });
+        detailModal.value = {
+          show: true,
+          type: 'country',
+          country: countryItem.country,
+          creative: '',
+        };
+        var series = detailSeries.value;
+        nextTick().then(function () {
+          renderDetailChart(series);
         });
       }
 
       function closeCreativeDetail() {
-        detailModal.value.show = false;
+        detailModal.value = { show: false, type: 'creative', creative: '', country: '' };
+        detailQueryFilter.value = null;
         if (detailChart) {
           detailChart.dispose();
           detailChart = null;
@@ -1198,6 +1680,10 @@
 
       function openKpiTrend(card, kind) {
         if (!card || !card.metricKey) return;
+        if ((kind || 'kpi') === 'kpi' && !canViewCore.value) {
+          openLoginModal();
+          return;
+        }
         kpiTrendModal.value = {
           show: true,
           label: card.label,
@@ -1253,64 +1739,123 @@
           }
 
           kpiTrendChart.setOption({
-          backgroundColor: 'transparent',
-          tooltip: {
-            trigger: 'axis',
-            backgroundColor: '#1e293b',
-            borderColor: '#334155',
-            textStyle: { color: '#f1f5f9' },
-            formatter: function (params) {
-              var p = params[0];
-              if (!p) return '';
-              var val = p.value;
-              var text = isPercent ? U.formatPercent(val) : formatKpiTrendTooltip(val, modal.metricKey);
-              return p.axisValue + '<br/>' + modal.label + ': ' + text;
-            },
-          },
-          grid: { left: 56, right: 24, top: 32, bottom: dates.length > 8 ? 64 : 48 },
-          xAxis: {
-            type: 'category',
-            data: dates,
-            axisLine: { lineStyle: { color: '#334155' } },
-            axisLabel: { color: '#94a3b8', rotate: dates.length > 8 ? 35 : 0, fontSize: 11 },
-          },
-          yAxis: {
-            type: 'value',
-            axisLabel: {
-              color: '#94a3b8',
-              formatter: isPercent ? '{value}%' : undefined,
-            },
-            splitLine: { lineStyle: { color: '#1e293b', type: 'dashed' } },
-          },
-          series: [
-            {
-              name: modal.label,
-              type: 'line',
-              data: values,
-              smooth: true,
-              symbol: 'circle',
-              symbolSize: 7,
-              lineStyle: { width: 3, color: modal.accent },
-              itemStyle: { color: modal.accent },
-              areaStyle: {
-                color: {
-                  type: 'linear',
-                  x: 0,
-                  y: 0,
-                  x2: 0,
-                  y2: 1,
-                  colorStops: [
-                    { offset: 0, color: modal.accent + '33' },
-                    { offset: 1, color: modal.accent + '05' },
-                  ],
-                },
+            backgroundColor: 'transparent',
+            tooltip: {
+              trigger: 'axis',
+              backgroundColor: '#1e293b',
+              borderColor: '#334155',
+              textStyle: { color: '#f1f5f9' },
+              formatter: function (params) {
+                var p = params[0];
+                if (!p) return '';
+                var val = p.value;
+                var text = isPercent ? U.formatPercent(val) : formatKpiTrendTooltip(val, modal.metricKey);
+                return p.axisValue + '<br/>' + modal.label + ': ' + text;
               },
             },
-          ],
-        }, true);
+            grid: { left: 56, right: 24, top: 32, bottom: dates.length > 8 ? 64 : 48 },
+            xAxis: {
+              type: 'category',
+              data: dates,
+              axisLine: { lineStyle: { color: '#334155' } },
+              axisLabel: { color: '#94a3b8', rotate: dates.length > 8 ? 35 : 0, fontSize: 11 },
+            },
+            yAxis: {
+              type: 'value',
+              axisLabel: {
+                color: '#94a3b8',
+                formatter: isPercent ? '{value}%' : undefined,
+              },
+              splitLine: { lineStyle: { color: '#1e293b', type: 'dashed' } },
+            },
+            series: [
+              {
+                name: modal.label,
+                type: 'line',
+                data: values,
+                smooth: true,
+                symbol: 'circle',
+                symbolSize: 7,
+                lineStyle: { width: 3, color: modal.accent },
+                itemStyle: { color: modal.accent },
+                areaStyle: {
+                  color: {
+                    type: 'linear',
+                    x: 0,
+                    y: 0,
+                    x2: 0,
+                    y2: 1,
+                    colorStops: [
+                      { offset: 0, color: modal.accent + '33' },
+                      { offset: 1, color: modal.accent + '05' },
+                    ],
+                  },
+                },
+              },
+            ],
+          }, true);
         }).catch(function (err) {
           console.error(err);
         });
+      }
+
+      function snapshotPlatformUi(platformId) {
+        platformUiCache[platformId] = {
+          filters: JSON.parse(JSON.stringify(filters.value)),
+          compareFilters: JSON.parse(JSON.stringify(compareFilters.value)),
+          lifecycleFilters: JSON.parse(JSON.stringify(lifecycleFilters.value)),
+          datePresetMain: datePresetMain.value,
+          datePresetCompare: datePresetCompare.value,
+          datePresetLifecycle: datePresetLifecycle.value,
+          funnelAccount: funnelAccount.value,
+          funnelCountry: funnelCountry.value,
+          funnelSortKey: funnelSortKey.value,
+          funnelSortDir: funnelSortDir.value,
+          granularity: granularity.value,
+          compareMetric: compareMetric.value,
+          topN: topN.value,
+          headCreativeWindow: headCreativeWindow.value,
+        };
+      }
+
+      function restorePlatformUi(platformId) {
+        var snap = platformUiCache[platformId];
+        if (!snap) return;
+        filters.value = snap.filters;
+        compareFilters.value = snap.compareFilters;
+        lifecycleFilters.value = snap.lifecycleFilters;
+        datePresetMain.value = snap.datePresetMain;
+        datePresetCompare.value = snap.datePresetCompare;
+        datePresetLifecycle.value = snap.datePresetLifecycle;
+        funnelAccount.value = snap.funnelAccount;
+        funnelCountry.value = snap.funnelCountry;
+        funnelSortKey.value = snap.funnelSortKey || 'spend';
+        funnelSortDir.value = snap.funnelSortDir || 'desc';
+        granularity.value = snap.granularity || 'day';
+        compareMetric.value = snap.compareMetric || 'spend';
+        topN.value = snap.topN != null ? snap.topN : 15;
+        headCreativeWindow.value = snap.headCreativeWindow || 7;
+      }
+
+      function prefetchEcharts() {
+        loadEcharts().catch(function () { /* ignore */ });
+      }
+
+      function activateCachedPlatform(platformId) {
+        var cachedStore = platformStoreCache.value[platformId];
+        if (!cachedStore) return false;
+        disposeAllCharts();
+        closeCreativeDetail();
+        closeKpiTrendModal();
+        store.value = cachedStore;
+        loading.value = false;
+        error.value = '';
+        nextTick().then(function () {
+          initCharts();
+          syncFunnelColumnWidths();
+          prefetchEcharts();
+        });
+        return true;
       }
 
       function loadData() {
@@ -1318,24 +1863,45 @@
           return Promise.reject(new Error('请运行 node serve.js 后访问 http://localhost:8080，不要直接打开 HTML 文件'));
         }
 
-        function applyData(data) {
-          store.value = window.createDataStore(data);
-          if (!store.value) {
-            throw new Error('数据格式无效');
-          }
-          rememberDataVersion(data);
-          deferredReady.value = false;
-          resetFilters();
-          loading.value = false;
-          return Promise.resolve();
+        return loadManifest(platform.value)
+          .then(function (manifest) {
+            if (!manifest.months || !manifest.months.length) throw new Error('无可用数据月份');
+            var initialIds = getInitialMonthIds(manifest);
+            return fetchAndMergeMonths(platform.value, initialIds, manifest, true);
+          });
+      }
+
+      function reloadDashboardData() {
+        disposeAllCharts();
+        closeCreativeDetail();
+        closeKpiTrendModal();
+        loading.value = true;
+        error.value = '';
+        return loadData()
+          .then(function () { return nextTick(); })
+          .then(function () {
+            initCharts();
+            syncFunnelColumnWidths();
+            prefetchEcharts();
+          })
+          .catch(function (e) {
+            error.value = (e && e.message) || '数据加载失败';
+            loading.value = false;
+          });
+      }
+
+      function switchPlatform(id) {
+        if (id === platform.value) return;
+        snapshotPlatformUi(platform.value);
+        platform.value = id;
+
+        if (platformStoreCache.value[id] && manifestCache.value[id]) {
+          restorePlatformUi(id);
+          activateCachedPlatform(id);
+          return;
         }
 
-        return fetch(getDataUrl())
-          .then(function (res) {
-            if (!res.ok) throw new Error('无法加载数据');
-            return res.json();
-          })
-          .then(applyData);
+        reloadDashboardData();
       }
 
       onMounted(function () {
@@ -1356,7 +1922,6 @@
         loadData()
           .then(function () { return nextTick(); })
           .then(function () {
-            scheduleDeferredSections();
             initCharts();
             window.addEventListener('resize', function () {
               if (trendChart) trendChart.resize();
@@ -1370,23 +1935,44 @@
               countryDropdownOpen.value = false;
             });
             setupColumnSelection();
+            prefetchEcharts();
           })
           .catch(function (e) {
-            error.value = (e && e.message) || '数据加载失败，请先运行 node scripts/convert-xlsx.js 生成数据';
+            error.value = (e && e.message) || ('数据加载失败，请先运行 ' + platformConfig.value.convertHint + ' 生成数据');
             loading.value = false;
           });
       });
 
-      watch([filters, granularity, authUser], function () {
-        if (isLoggedIn.value) nextTick().then(renderTrendChart);
+      watch([filters, granularity, authUser, platform], function () {
+        if (canViewCore.value) nextTick().then(renderTrendChart);
       }, { deep: true });
 
-      watch([activeFunnel, funnelAccount, summary], function () {
-        if (isLoggedIn.value) nextTick().then(renderFunnelChart);
+      watch(function () {
+        return [
+          platform.value,
+          filters.value.dateStart,
+          filters.value.dateEnd,
+          compareFilters.value.dateStart,
+          compareFilters.value.dateEnd,
+          lifecycleFilters.value.dateStart,
+          lifecycleFilters.value.dateEnd,
+        ];
+      }, function () {
+        syncMonthsForActiveRanges();
       });
 
-      watch([funnelAccounts, funnelSortKey, funnelSortDir], function () {
-        if (funnelAccount.value && !funnelAccounts.value.some(function (a) {
+      watch([activeFunnel, funnelAccount, funnelCountry, funnelSummary], function () {
+        if (canViewFunnel.value) nextTick().then(renderFunnelChart);
+      });
+
+      watch([funnelAccounts, funnelCountries, funnelSortKey, funnelSortDir], function () {
+        if (isApplovin.value) {
+          if (funnelCountry.value && !funnelCountries.value.some(function (a) {
+            return a.country === funnelCountry.value;
+          })) {
+            funnelCountry.value = '';
+          }
+        } else if (funnelAccount.value && !funnelAccounts.value.some(function (a) {
           return a.accountName === funnelAccount.value;
         })) {
           funnelAccount.value = '';
@@ -1410,9 +1996,33 @@
         }
       }, { deep: true });
 
+      watch(canViewCore, function (val) {
+        if (val) {
+          nextTick().then(ensureProtectedCharts);
+        } else {
+          disposeProtectedCharts();
+        }
+      });
+
+      watch(canViewFunnel, function (val) {
+        if (val) {
+          nextTick().then(ensureFunnelChart);
+        } else {
+          disposeFunnelChart();
+        }
+      });
+
       return {
         loading: loading,
         error: error,
+        platform: platform,
+        platformConfig: platformConfig,
+        platformList: platformList,
+        isApplovin: isApplovin,
+        canViewCore: canViewCore,
+        canViewFunnel: canViewFunnel,
+        switchPlatform: switchPlatform,
+        manifestDateRange: manifestDateRange,
         meta: meta,
         filters: filters,
         compareFilters: compareFilters,
@@ -1429,6 +2039,7 @@
         lifecycleSortIcon: lifecycleSortIcon,
         copyToast: copyToast,
         funnelAccount: funnelAccount,
+        funnelCountry: funnelCountry,
         funnelSortKey: funnelSortKey,
         funnelSortDir: funnelSortDir,
         funnelSummaryRow: funnelSummaryRow,
@@ -1447,7 +2058,7 @@
         loginForm: loginForm,
         loginError: loginError,
         protectedScopeHint: protectedScopeHint,
-        deferredReady: deferredReady,
+        potentialHintRoas: potentialHintRoas,
         openLoginModal: openLoginModal,
         closeLoginModal: closeLoginModal,
         handleLogin: handleLogin,
@@ -1460,6 +2071,7 @@
         potentialCreatives: potentialCreatives,
         potentialWindowDays: potentialWindowDays,
         funnelAccounts: funnelAccounts,
+        funnelCountries: funnelCountries,
         countryTiers: countryTiers,
         countryExpanded: countryExpanded,
         activeFunnel: activeFunnel,
@@ -1484,6 +2096,7 @@
         onCountryColumnClick: onCountryColumnClick,
         onCompareColumnClick: onCompareColumnClick,
         openCreativeDetail: openCreativeDetail,
+        openCountryDetail: openCountryDetail,
         closeCreativeDetail: closeCreativeDetail,
         compareBarWidth: compareBarWidth,
         formatCompareValue: formatCompareValue,

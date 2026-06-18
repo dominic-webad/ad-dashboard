@@ -1,0 +1,33 @@
+{
+  "platform": "fb",
+  "generatedAt": "2026-06-18T08:26:49.083Z",
+  "defaultMonth": "2026-06",
+  "sourceFiles": [
+    "Untitled-report_0601.xlsx",
+    "Untitled-report_0602.xlsx",
+    "Untitled-report_0603.xlsx",
+    "Untitled-report_0604.xlsx",
+    "Untitled-report_0605.xlsx",
+    "Untitled-report_0606.xlsx",
+    "Untitled-report_0607.xlsx",
+    "Untitled-report_0608.xlsx",
+    "Untitled-report_0610.xlsx",
+    "Untitled-report_0611.xlsx",
+    "Untitled-report_0612.xlsx",
+    "Untitled-report_0615.xlsx",
+    "Untitled-report_0616.xlsx",
+    "Untitled-report_0617.xlsx",
+    "Untitled-report_0618.xlsx"
+  ],
+  "months": [
+    {
+      "id": "2026-06",
+      "file": "2026-06.json",
+      "dateRange": {
+        "min": "2026-06-01",
+        "max": "2026-06-17"
+      },
+      "totalRecords": 527010
+    }
+  ]
+}

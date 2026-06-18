@@ -19,8 +19,11 @@ const COMPRESSIBLE = new Set(['.html', '.css', '.js', '.json']);
 function sendResponse(req, res, filePath, data) {
   const ext = path.extname(filePath);
   const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream' };
+  const versioned = (req.url || '').includes('?v=');
 
-  if (ext === '.json') {
+  if (versioned && COMPRESSIBLE.has(ext)) {
+    headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+  } else if (ext === '.json') {
     headers['Cache-Control'] = 'public, max-age=300';
   } else if (COMPRESSIBLE.has(ext)) {
     headers['Cache-Control'] = 'public, max-age=3600';

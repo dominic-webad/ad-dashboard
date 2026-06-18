@@ -519,16 +519,102 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   grid-template-columns: repeat(6, 1fr);
 }
 
+.funnel-kpi-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
 @media (max-width: 1200px) {
-  .funnel-kpi-6 {
+  .funnel-kpi-6,
+  .funnel-kpi-4 {
     grid-template-columns: repeat(3, 1fr);
   }
 }
 
 @media (max-width: 640px) {
-  .funnel-kpi-6 {
+  .funnel-kpi-6,
+  .funnel-kpi-4 {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+.platform-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.platform-tab {
+  flex: 1;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.platform-tab:hover {
+  color: var(--text);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.platform-tab.active {
+  background: var(--primary-soft);
+  color: #93c5fd;
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.35);
+}
+
+.month-select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.month-select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+
+.country-tier-grid:has(.col-trend) .country-tier-table-head,
+.country-tier-grid:has(.col-trend) .country-tier-item {
+  grid-template-columns: 1fr 88px 64px 72px;
+  gap: 8px;
+}
+
+.country-tier-table-head span:not(:first-child):not(.col-trend) {
+  text-align: right;
+}
+
+.country-tier-table-head .col-trend,
+.country-trend {
+  text-align: center;
+}
+
+.country-trend .btn-detail {
+  padding: 3px 8px;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.modal-country-label {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  flex: 1;
+  color: #e2e8f0;
 }
 
 .multiselect-wrap {

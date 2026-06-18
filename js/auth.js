@@ -40,9 +40,17 @@
     }
   }
 
+  function canViewCoreData(user, platformId) {
+    if (platformId === 'applovin') {
+      return !!(user && user.role === 'admin');
+    }
+    return !!user;
+  }
+
   global.AdAuth = {
     login: login,
     logout: logout,
     getSessionUser: getSessionUser,
+    canViewCoreData: canViewCoreData,
   };
 })(window);
