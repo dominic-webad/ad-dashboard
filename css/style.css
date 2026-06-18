@@ -281,6 +281,21 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
+.filter-group select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.multiselect.is-disabled .multiselect-display {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.multiselect-wrap.is-disabled .selected-tags {
+  opacity: 0.55;
+}
+
 .btn-reset {
   width: 100%;
   padding: 9px 12px;
@@ -303,6 +318,16 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   grid-template-columns: repeat(7, 1fr);
   gap: 12px;
   margin-bottom: 20px;
+}
+
+.core-kpi-grid {
+  align-items: start;
+}
+
+.core-kpi-trend {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin-bottom: 0;
 }
 
 @media (max-width: 1200px) {

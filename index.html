@@ -81,15 +81,20 @@
             </div>
             <div class="filter-group" v-if="platformConfig.filters.showOptimizer">
               <label>优化师</label>
-              <select v-model="filters.optimizer">
-                <option value="">全部优化师</option>
-                <option v-for="o in meta.optimizers" :key="o" :value="o">{{ o }}</option>
+              <select v-model="filters.optimizer" :disabled="!isLoggedIn" :title="isLoggedIn ? '' : '登录后可筛选优化师'">
+                <option value="">{{ authUser && authUser.role !== 'admin' && !isApplovin ? '本人 + Creative' : '全部优化师' }}</option>
+                <option v-for="o in visibleOptimizers" :key="o" :value="o">{{ o }}</option>
               </select>
             </div>
 
-            <div class="filter-group multiselect-wrap">
+            <div class="filter-group multiselect-wrap" :class="{ 'is-disabled': !isLoggedIn }">
               <label>{{ platformConfig.filters.accountLabel }}（可多选）</label>
-              <div class="multiselect" @click.stop="accountDropdownOpen = !accountDropdownOpen; countryDropdownOpen = false">
+              <div
+                class="multiselect"
+                :class="{ 'is-disabled': !isLoggedIn }"
+                :title="isLoggedIn ? '' : '登录后可筛选账号'"
+                @click.stop="openAccountDropdown"
+              >
                 <div class="multiselect-display">
                   <span v-if="!filters.accounts.length" class="placeholder">{{ platformConfig.filters.accountPlaceholder }}</span>
                   <span v-else class="selected-count">已选 {{ filters.accounts.length }} 个{{ isApplovin ? ' Set' : '账号' }}</span>
@@ -169,7 +174,7 @@
         </section>
 
         <template v-if="canViewCore">
-        <section class="kpi-grid">
+        <section class="kpi-grid core-kpi-grid">
           <div class="kpi-card" v-for="k in kpiCards" :key="k.label" :style="{ '--accent': k.accent }">
             <div class="kpi-body">
               <div class="kpi-top">
@@ -190,23 +195,23 @@
               </button>
             </div>
           </div>
-        </section>
 
-        <section class="panel trend-panel">
-          <div class="panel-header">
-            <div>
-              <h2>核心指标趋势</h2>
-              <p class="hint">柱状图：消耗 · 折线图（右轴）：{{ isApplovin ? 'D0 ROAS' : 'ROAS' }} · 按日期升序</p>
-            </div>
-            <div class="controls">
-              <div class="btn-group">
-                <button type="button" :class="{ active: granularity === 'day' }" @click="granularity = 'day'">日</button>
-                <button type="button" :class="{ active: granularity === 'week' }" @click="granularity = 'week'">周</button>
-                <button type="button" :class="{ active: granularity === 'month' }" @click="granularity = 'month'">月</button>
+          <section class="panel trend-panel core-kpi-trend">
+            <div class="panel-header">
+              <div>
+                <h2>核心指标趋势</h2>
+                <p class="hint">柱状图：消耗 · 折线图（右轴）：{{ isApplovin ? 'D0 ROAS' : 'ROAS' }} · 按日期升序</p>
+              </div>
+              <div class="controls">
+                <div class="btn-group">
+                  <button type="button" :class="{ active: granularity === 'day' }" @click="granularity = 'day'">日</button>
+                  <button type="button" :class="{ active: granularity === 'week' }" @click="granularity = 'week'">周</button>
+                  <button type="button" :class="{ active: granularity === 'month' }" @click="granularity = 'month'">月</button>
+                </div>
               </div>
             </div>
-          </div>
-          <div id="trend-chart" class="chart"></div>
+            <div id="trend-chart" class="chart"></div>
+          </section>
         </section>
         </template>
 
@@ -727,7 +732,7 @@
             <div class="modal-header">
               <div>
                 <h3>登录看板</h3>
-                <p class="modal-sub">admin 可查看全部数据 · 优化师仅可见本人 + Creative 数据</p>
+                <p class="modal-sub">admin 可查看全部数据 · 优化师可查看本人与 Creative，筛选可分别查看</p>
               </div>
               <button type="button" class="modal-close" @click="closeLoginModal">✕</button>
             </div>

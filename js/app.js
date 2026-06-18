@@ -480,49 +480,58 @@
         return base;
       }
 
+      function applyOptimizerScope(f) {
+        if (!authUser.value || authUser.value.role === 'admin') return f;
+        if (!platformConfig.value.filters.showOptimizer) return f;
+
+        var selfOpt = authUser.value.optimizer;
+        var allowed = [selfOpt, 'Creative'];
+        var selected = f.optimizer || '';
+
+        if (selected) {
+          if (allowed.indexOf(selected) >= 0) {
+            return Object.assign({}, f, { optimizer: selected, optimizers: [] });
+          }
+          return Object.assign({}, f, { optimizer: '', optimizers: ['\0__DENIED__'] });
+        }
+
+        return Object.assign({}, f, { optimizer: '', optimizers: allowed.slice() });
+      }
+
       function globalFilter() {
-        return Object.assign({}, dimFilter(), {
+        return applyOptimizerScope(Object.assign({}, dimFilter(), {
           dateStart: filters.value.dateStart,
           dateEnd: filters.value.dateEnd,
-        });
+        }));
       }
 
       function compareFilter() {
-        return Object.assign({}, dimFilter(), {
+        return applyOptimizerScope(Object.assign({}, dimFilter(), {
           dateStart: compareFilters.value.dateStart,
           dateEnd: compareFilters.value.dateEnd,
-        });
+        }));
       }
 
       function lifecycleFilter() {
-        return Object.assign({}, dimFilter(), {
+        return applyOptimizerScope(Object.assign({}, dimFilter(), {
           dateStart: lifecycleFilters.value.dateStart || filters.value.dateStart,
           dateEnd: lifecycleFilters.value.dateEnd || filters.value.dateEnd,
-        });
+        }));
       }
 
       function dailyTrendFilter() {
         if (platformConfig.value.detailModal.trendDaysFixed) {
-          return buildDetailTrendFilter();
+          return applyOptimizerScope(buildDetailTrendFilter());
         }
         var range = resolveDatePreset('last14');
-        return Object.assign({}, dimFilter(), {
+        return applyOptimizerScope(Object.assign({}, dimFilter(), {
           dateStart: range.start,
           dateEnd: range.end,
-        });
+        }));
       }
 
       function protectedFilter() {
-        var base = Object.assign({}, dimFilter(), {
-          dateStart: filters.value.dateStart,
-          dateEnd: filters.value.dateEnd,
-        });
-        if (!authUser.value) return base;
-        if (authUser.value.role === 'admin') return base;
-        return Object.assign({}, base, {
-          optimizer: '',
-          optimizers: [authUser.value.optimizer, 'Creative'],
-        });
+        return globalFilter();
       }
 
       function formatLocalIsoDate(d) {
@@ -579,7 +588,18 @@
       var protectedScopeHint = computed(function () {
         if (!authUser.value || isApplovin.value) return '';
         if (authUser.value.role === 'admin') return '全部数据';
+        var selected = filters.value.optimizer;
+        if (selected === 'Creative') return 'Creative';
+        if (selected === authUser.value.optimizer) return authUser.value.displayName;
         return authUser.value.displayName + ' + Creative';
+      });
+
+      var visibleOptimizers = computed(function () {
+        var list = meta.value.optimizers || [];
+        if (!authUser.value || authUser.value.role === 'admin' || isApplovin.value) return list;
+        return list.filter(function (o) {
+          return o === authUser.value.optimizer || o === 'Creative';
+        });
       });
 
       var latestDay = computed(function () {
@@ -999,9 +1019,18 @@
       function handleLogout() {
         if (window.AdAuth) window.AdAuth.logout();
         authUser.value = null;
+        filters.value.optimizer = '';
+        filters.value.accounts = [];
+        accountDropdownOpen.value = false;
         closeKpiTrendModal();
         closeLoginModal();
         disposeProtectedCharts();
+      }
+
+      function openAccountDropdown() {
+        if (!isLoggedIn.value) return;
+        accountDropdownOpen.value = !accountDropdownOpen.value;
+        countryDropdownOpen.value = false;
       }
 
       function trendRoasLabel() {
@@ -1270,6 +1299,7 @@
       }
 
       function toggleAccount(name) {
+        if (!isLoggedIn.value) return;
         var list = filters.value.accounts.slice();
         var idx = list.indexOf(name);
         if (idx >= 0) list.splice(idx, 1);
@@ -1286,6 +1316,7 @@
       }
 
       function selectVisibleAccounts() {
+        if (!isLoggedIn.value) return;
         var set = new Set(filters.value.accounts);
         filteredAccountOptions.value.forEach(function (a) { set.add(a); });
         filters.value.accounts = Array.from(set);
@@ -1298,6 +1329,7 @@
       }
 
       function clearAccounts() {
+        if (!isLoggedIn.value) return;
         filters.value.accounts = [];
       }
 
@@ -1639,7 +1671,7 @@
 
       function openCreativeDetail(item) {
         detailQueryFilter.value = platformConfig.value.detailModal.trendDaysFixed
-          ? buildDetailTrendFilter()
+          ? applyOptimizerScope(buildDetailTrendFilter())
           : null;
         detailModal.value = {
           show: true,
@@ -1654,9 +1686,9 @@
       }
 
       function openCountryDetail(countryItem) {
-        detailQueryFilter.value = buildDetailTrendFilter({
+        detailQueryFilter.value = applyOptimizerScope(buildDetailTrendFilter({
           countries: [countryItem.country],
-        });
+        }));
         detailModal.value = {
           show: true,
           type: 'country',
@@ -2058,6 +2090,7 @@
         loginForm: loginForm,
         loginError: loginError,
         protectedScopeHint: protectedScopeHint,
+        visibleOptimizers: visibleOptimizers,
         potentialHintRoas: potentialHintRoas,
         openLoginModal: openLoginModal,
         closeLoginModal: closeLoginModal,
@@ -2107,6 +2140,7 @@
         isAccountSelected: isAccountSelected,
         isCountrySelected: isCountrySelected,
         toggleAccount: toggleAccount,
+        openAccountDropdown: openAccountDropdown,
         toggleCountry: toggleCountry,
         selectVisibleAccounts: selectVisibleAccounts,
         selectVisibleCountries: selectVisibleCountries,
