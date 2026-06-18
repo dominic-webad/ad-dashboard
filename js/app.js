@@ -1358,9 +1358,6 @@
           .then(function () {
             scheduleDeferredSections();
             initCharts();
-            scheduleIdle(function () {
-              loadEcharts().catch(function () {});
-            });
             window.addEventListener('resize', function () {
               if (trendChart) trendChart.resize();
               if (funnelChart) funnelChart.resize();
