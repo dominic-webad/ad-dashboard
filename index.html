@@ -160,7 +160,7 @@
             <h2 v-else-if="isApplovin">核心 KPI 需管理员登录</h2>
             <h2 v-else>核心数据模块需登录</h2>
             <p v-if="isApplovin && isLoggedIn" class="auth-gate-desc">当前账号无权查看 AppLovin 核心 KPI 与趋势，请使用 admin 登录。下方漏斗、国家、素材等模块仍可正常查看。</p>
-            <p v-else-if="isApplovin" class="auth-gate-desc">顶部 KPI 指标与核心指标趋势需要 admin 登录后查看。漏斗转化率、转化漏斗分析、投放国家、素材对比、生命周期等模块无需登录。</p>
+            <p v-else-if="isApplovin" class="auth-gate-desc">顶部 KPI 指标、核心指标趋势与漏斗转化率色块需要 admin 登录后查看。转化漏斗分析、投放国家、素材对比、生命周期等模块无需登录。</p>
             <p v-else class="auth-gate-desc">KPI 指标、核心指标趋势、转化漏斗分析需要登录后查看。投放国家、素材对比、生命周期等模块无需登录。</p>
             <form v-if="!isLoggedIn" class="auth-form" @submit.prevent="handleLogin">
               <div class="auth-form-row">
@@ -198,7 +198,7 @@
         </section>
         </template>
 
-        <template v-if="canViewFunnel">
+        <template v-if="canViewFunnelKpi">
         <section class="kpi-section-label">漏斗转化率</section>
         <section class="kpi-grid funnel-kpi-grid" :class="isApplovin ? 'funnel-kpi-4' : 'funnel-kpi-6'">
           <div class="kpi-card" v-for="k in funnelKpiCards" :key="k.label" :style="{ '--accent': k.accent }">

@@ -111,6 +111,19 @@
         return window.AdAuth && window.AdAuth.canViewCoreData(authUser.value, platform.value);
       });
 
+      function checkAuthGate(gate) {
+        if (gate === false) return true;
+        if (!authUser.value) return false;
+        if (gate === 'admin') return authUser.value.role === 'admin';
+        return true;
+      }
+
+      var canViewFunnelKpi = computed(function () {
+        var gate = platformConfig.value.authGate.funnelKpi;
+        if (gate === undefined) gate = platformConfig.value.authGate.funnel;
+        return checkAuthGate(gate);
+      });
+
       var canViewFunnel = computed(function () {
         var gate = platformConfig.value.authGate.funnel;
         if (gate === false) return true;
@@ -2053,6 +2066,7 @@
         isApplovin: isApplovin,
         canViewCore: canViewCore,
         canViewFunnel: canViewFunnel,
+        canViewFunnelKpi: canViewFunnelKpi,
         switchPlatform: switchPlatform,
         manifestDateRange: manifestDateRange,
         meta: meta,
