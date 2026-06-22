@@ -541,7 +541,7 @@
             <table class="selectable-table">
               <thead @dblclick="onTableHeadClick($event, 'potential')">
                 <tr>
-                  <th class="col-selectable">素材</th>
+                  <th class="col-selectable">素材名称</th>
                   <th>昨日消耗</th>
                   <th>{{ headCreativeWindow }}日总消耗</th>
                   <th>ROAS</th>
@@ -690,7 +690,7 @@
             <table class="lifecycle-table selectable-table">
               <thead @dblclick="onTableHeadClick($event, 'lifecycle')">
                 <tr>
-                  <th class="col-selectable">素材</th>
+                  <th class="col-selectable">素材名称</th>
                   <th class="sortable" @click="sortLifecycleColumn('spend', $event)">消耗 {{ lifecycleSortIcon('spend') }}</th>
                   <th class="sortable" @click="sortLifecycleColumn('roas', $event)">ROAS {{ lifecycleSortIcon('roas') }}</th>
                   <th class="sortable" @click="sortLifecycleColumn('purchases', $event)">转化 {{ lifecycleSortIcon('purchases') }}</th>

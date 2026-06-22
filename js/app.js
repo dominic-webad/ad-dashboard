@@ -1582,6 +1582,27 @@
         return lines;
       }
 
+      function copyColumnText(text, evt) {
+        if (!text) {
+          showCopyToast(evt, '该列暂无数据');
+          return;
+        }
+        var done = function () {
+          var count = text.split('\n').filter(function (line) { return line.length > 0; }).length;
+          showCopyToast(evt, '已复制 ' + count + ' 条');
+          clearColumnSelection();
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(function () {
+            fallbackCopy(text);
+            done();
+          });
+        } else {
+          fallbackCopy(text);
+          done();
+        }
+      }
+
       function onTableHeadClick(evt, group) {
         var th = evt.target.closest('th');
         if (!th || !th.closest('thead')) return;
@@ -1591,9 +1612,10 @@
         clearColumnSelection();
         columnSelectAt = Date.now();
         var lines = collectTableColumnCells(group, th.cellIndex);
-        selectedColumnText.value = lines.join('\n');
+        var text = lines.join('\n');
+        selectedColumnText.value = text;
         th.classList.add('col-selected');
-        showCopyToast(evt, '已选中该列，Ctrl+C 复制');
+        copyColumnText(text, evt);
       }
 
       function onCountryColumnClick(evt) {
@@ -1612,9 +1634,10 @@
           cell.classList.add('col-selected');
           lines.push(cell.innerText.trim());
         });
-        selectedColumnText.value = lines.join('\n');
+        var text = lines.join('\n');
+        selectedColumnText.value = text;
         head.classList.add('col-selected');
-        showCopyToast(evt, '已选中该列，Ctrl+C 复制');
+        copyColumnText(text, evt);
       }
 
       function onCompareColumnClick(evt) {
@@ -1629,9 +1652,10 @@
           var nameEl = cell.querySelector('.compare-full-name');
           lines.push((nameEl ? nameEl.innerText : cell.innerText).trim());
         });
-        selectedColumnText.value = lines.join('\n');
+        var text = lines.join('\n');
+        selectedColumnText.value = text;
         head.classList.add('col-selected');
-        showCopyToast(evt, '已选中该列，Ctrl+C 复制');
+        copyColumnText(text, evt);
       }
 
       var columnSelectAt = 0;
@@ -1651,7 +1675,7 @@
           clearColumnSelection();
         });
         document.querySelectorAll('.col-selectable').forEach(function (el) {
-          el.title = '双击选中整列';
+          el.title = '双击复制整列';
         });
       }
 
