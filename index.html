@@ -649,7 +649,12 @@
             </div>
           </div>
           <div class="lifecycle-controls">
-            <input class="search-input lifecycle-search-input" v-model="lifecycleSearch" placeholder="搜索素材名称" />
+            <textarea
+              class="search-input lifecycle-search-input"
+              v-model="lifecycleSearch"
+              rows="3"
+              placeholder="每行一个素材名称，支持同时搜索多个"
+            ></textarea>
             <div class="lifecycle-controls-right">
               <div class="lifecycle-date-range">
                 <input type="date" class="select-sm" v-model="lifecycleFilters.dateStart" @change="clearDatePreset('lifecycle')" @click="openDatePicker" />

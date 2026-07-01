@@ -1338,7 +1338,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   gap: 8px 16px;
   width: 100%;
   margin-bottom: 8px;
-  align-items: center;
+  align-items: start;
 }
 
 .lifecycle-search-input {
@@ -1346,9 +1346,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   grid-row: 1;
   width: 100%;
   min-width: 0;
-  height: var(--life-control-h);
-  padding: 0 11px;
+  min-height: calc(var(--life-control-h) * 2 + 8px);
+  max-height: 140px;
+  padding: 8px 11px;
   font-size: 0.875rem;
+  line-height: 1.4;
+  resize: vertical;
+  font-family: inherit;
 }
 
 .lifecycle-controls-right {
