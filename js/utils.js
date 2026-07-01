@@ -118,11 +118,7 @@
     if (!term) return true;
     var name = normalizeCreativeSearchTerm(creative);
     if (!name) return false;
-    if (name === term || name.indexOf(term) >= 0 || term.indexOf(name) >= 0) return true;
-    var normName = name.replace(/[\s_\-./]+/g, '');
-    var normTerm = term.replace(/[\s_\-./]+/g, '');
-    if (!normTerm) return false;
-    return normName.indexOf(normTerm) >= 0 || normTerm.indexOf(normName) >= 0;
+    return name.indexOf(term) >= 0;
   }
 
   function parseOptimizerFromAccount(accountName) {
