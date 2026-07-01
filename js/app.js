@@ -700,25 +700,17 @@
         );
       });
 
-      function parseCreativeSearchTerms(text) {
-        if (!text || !text.trim()) return [];
-        return text.split(/\r?\n/).map(function (line) {
-          return line.trim().toLowerCase();
-        }).filter(function (line) {
-          return line.length > 0;
-        });
-      }
-
       var lifecycleItems = computed(function () {
         var items = lifecycleClassifiedAll.value.slice();
         if (lifecyclePhase.value) {
           items = items.filter(function (i) { return i.phase === lifecyclePhase.value; });
         }
-        var searchTerms = parseCreativeSearchTerms(lifecycleSearch.value);
+        var searchTerms = U.parseCreativeSearchTerms(lifecycleSearch.value);
         if (searchTerms.length) {
           items = items.filter(function (i) {
-            var name = i.creative.toLowerCase();
-            return searchTerms.some(function (q) { return name.indexOf(q) >= 0; });
+            return searchTerms.some(function (q) {
+              return U.creativeMatchesSearchTerm(i.creative, q);
+            });
           });
         }
         var key = lifecycleSortKey.value;

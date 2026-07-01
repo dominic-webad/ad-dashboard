@@ -91,6 +91,40 @@
     return toIsoDate(dateStr).slice(0, 7);
   }
 
+  function normalizeCreativeSearchTerm(part) {
+    var s = String(part || '')
+      .replace(/^\uFEFF/, '')
+      .replace(/[\u200b\u00a0]/g, '')
+      .trim();
+    if (s.length >= 2) {
+      var first = s.charAt(0);
+      var last = s.charAt(s.length - 1);
+      if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+        s = s.slice(1, -1).trim();
+      }
+    }
+    return s.toLowerCase();
+  }
+
+  function parseCreativeSearchTerms(text) {
+    if (!text || !String(text).trim()) return [];
+    return String(text)
+      .split(/[\r\n\t,，;；]+/)
+      .map(normalizeCreativeSearchTerm)
+      .filter(function (term) { return term.length > 0; });
+  }
+
+  function creativeMatchesSearchTerm(creative, term) {
+    if (!term) return true;
+    var name = normalizeCreativeSearchTerm(creative);
+    if (!name) return false;
+    if (name === term || name.indexOf(term) >= 0 || term.indexOf(name) >= 0) return true;
+    var normName = name.replace(/[\s_\-./]+/g, '');
+    var normTerm = term.replace(/[\s_\-./]+/g, '');
+    if (!normTerm) return false;
+    return normName.indexOf(normTerm) >= 0 || normTerm.indexOf(normName) >= 0;
+  }
+
   function parseOptimizerFromAccount(accountName) {
     var lower = (accountName || '').toLowerCase();
     for (var i = 0; i < OPTIMIZER_RULES.length; i++) {
@@ -631,6 +665,8 @@
     buildFunnelRates: buildFunnelRates,
     findRisingCreatives: findRisingCreatives,
     parseOptimizerFromAccount: parseOptimizerFromAccount,
+    parseCreativeSearchTerms: parseCreativeSearchTerms,
+    creativeMatchesSearchTerm: creativeMatchesSearchTerm,
     OPTIMIZER_NAMES: OPTIMIZER_NAMES,
   };
 })(window);
