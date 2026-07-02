@@ -348,6 +348,17 @@
     });
   }
 
+  function recordImpressions(r) {
+    var clicks = r.clicks || 0;
+    var ctr = r.ctr || 0;
+    var imp = r.impressions || 0;
+    if (ctr > 0 && clicks > 0) {
+      var derived = Math.round((clicks / ctr) * 100);
+      if (imp <= 0 || imp < clicks) return derived;
+    }
+    return imp;
+  }
+
   function groupByCreative(records, latestDay) {
     var map = new Map();
     records.forEach(function (r) {
@@ -361,8 +372,8 @@
           conversionValue: 0,
           clicks: 0,
           impressions: 0,
-          ctrSum: 0,
-          ctrCount: 0,
+          cpmSum: 0,
+          cpmCount: 0,
         });
       }
       var g = map.get(key);
@@ -370,10 +381,10 @@
       g.purchases += r.purchases;
       g.conversionValue += r.conversionValue;
       g.clicks += r.clicks;
-      g.impressions += r.impressions;
-      if (r.ctr > 0) {
-        g.ctrSum += r.ctr;
-        g.ctrCount += 1;
+      g.impressions += recordImpressions(r);
+      if (r.cpm > 0) {
+        g.cpmSum += r.cpm;
+        g.cpmCount += 1;
       }
     });
 
@@ -381,9 +392,9 @@
       return Object.assign({}, g, {
         roas: g.spend > 0 ? g.conversionValue / g.spend : 0,
         cpa: g.purchases > 0 ? g.spend / g.purchases : 0,
-        ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : g.ctrCount > 0 ? g.ctrSum / g.ctrCount : 0,
+        ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0,
         cpc: g.clicks > 0 ? g.spend / g.clicks : 0,
-        cpm: g.impressions > 0 ? (g.spend / g.impressions) * 1000 : 0,
+        cpm: g.impressions > 0 ? (g.spend / g.impressions) * 1000 : g.cpmCount > 0 ? g.cpmSum / g.cpmCount : 0,
         daysLive: daysBetween(g.launchDate, latestDay || g.launchDate),
       });
     });

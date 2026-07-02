@@ -130,51 +130,19 @@
     };
   }
 
-  function rowImpressionsDirect(row) {
-    var imp = row[10] || 0;
-    if (imp > 0) return imp;
-    var ctr = row[8] || 0;
+  function rowImpressions(row) {
     var clicks = row[7] || 0;
-    if (ctr > 0 && clicks > 0) return Math.round((clicks / ctr) * 100);
+    var ctr = row[8] || 0;
+    var imp = row[10] || 0;
+    if (ctr > 0 && clicks > 0) {
+      var derived = Math.round((clicks / ctr) * 100);
+      if (imp <= 0 || imp < clicks) return derived;
+    }
+    if (imp > 0) return imp;
     var cpm = row[16] || row[15] || 0;
     var spend = row[4] || 0;
     if (cpm > 0 && spend > 0) return Math.round((spend / cpm) * 1000);
     return 0;
-  }
-
-  function buildImpressionHints(store) {
-    var byCreative = new Map();
-    var global = { clicks: 0, impressions: 0 };
-    var rows = store.rows;
-    var creatives = store.creatives;
-    for (var i = 0; i < rows.length; i++) {
-      var row = rows[i];
-      var imp = rowImpressionsDirect(row);
-      if (imp <= 0 || row[7] <= 0) continue;
-      var creative = creatives[row[3]];
-      if (!byCreative.has(creative)) byCreative.set(creative, { clicks: 0, impressions: 0 });
-      var hint = byCreative.get(creative);
-      hint.clicks += row[7];
-      hint.impressions += imp;
-      global.clicks += row[7];
-      global.impressions += imp;
-    }
-    return { byCreative: byCreative, global: global };
-  }
-
-  function estimateImpressionsFromHint(clicks, hint) {
-    if (!hint || hint.impressions <= 0 || hint.clicks <= 0 || clicks <= 0) return 0;
-    return Math.round(clicks / (hint.clicks / hint.impressions));
-  }
-
-  function effectiveRowImpressions(store, row) {
-    var direct = rowImpressionsDirect(row);
-    if (direct > 0) return direct;
-    if (!store.impressionHints || row[7] <= 0) return 0;
-    var creative = store.creatives[row[3]];
-    var hinted = estimateImpressionsFromHint(row[7], store.impressionHints.byCreative.get(creative));
-    if (hinted > 0) return hinted;
-    return estimateImpressionsFromHint(row[7], store.impressionHints.global);
   }
 
   function accumulateCpmStats(target, row) {
@@ -306,9 +274,9 @@
       return Object.assign({}, g, {
         roas: g.spend > 0 ? g.conversionValue / g.spend : 0,
         cpa: g.purchases > 0 ? g.spend / g.purchases : 0,
-        ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : g.ctrCount > 0 ? g.ctrSum / g.ctrCount : 0,
+        ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0,
         cpc: g.clicks > 0 ? g.spend / g.clicks : 0,
-        cpm: g.impressions > 0 ? (g.spend / g.impressions) * 1000 : 0,
+        cpm: g.impressions > 0 ? (g.spend / g.impressions) * 1000 : g.cpmCount > 0 ? g.cpmSum / g.cpmCount : 0,
         daysLive: U.daysBetween(g.launchDate, latestDay || g.launchDate),
       });
     });
@@ -379,12 +347,12 @@
       summaryState.conversionValue += row[6];
       summaryState.d7ConversionValue += row[15] || 0;
       summaryState.clicks += row[7];
-      summaryState.impressions += row[10] || 0;
+      summaryState.impressions += rowImpressions(row);
       summaryState.landingPageViews += row[11] || 0;
       summaryState.addsToCart += row[12] || 0;
       summaryState.checkoutsInitiated += row[13] || 0;
       summaryState.addsPaymentInfo += row[14] || 0;
-      summaryState.funnel.impressions += row[10] || 0;
+      summaryState.funnel.impressions += rowImpressions(row);
       summaryState.funnel.landingPageViews += row[11] || 0;
       summaryState.funnel.addsToCart += row[12] || 0;
       summaryState.funnel.checkoutsInitiated += row[13] || 0;
@@ -393,7 +361,7 @@
       if (country === 'US') {
         summaryState.funnel.usPurchases += row[5];
         summaryState.funnel.usSpend += row[4];
-        summaryState.funnel.usImpressions += row[10] || 0;
+        summaryState.funnel.usImpressions += rowImpressions(row);
       }
 
       if (!timeMap.has(day)) {
@@ -404,13 +372,13 @@
       t.purchases += row[5];
       t.conversionValue += row[6];
       t.clicks += row[7];
-      t.impressions += row[10] || 0;
+      t.impressions += rowImpressions(row);
 
       if (!creativeMap.has(creative)) {
         creativeMap.set(creative, {
           creative: creative,
           launchDate: store.getLaunchDate(creative),
-          spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, ctrSum: 0, ctrCount: 0,
+          spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, cpmSum: 0, cpmCount: 0,
         });
       }
       var cg = creativeMap.get(creative);
@@ -418,8 +386,8 @@
       cg.purchases += row[5];
       cg.conversionValue += row[6];
       cg.clicks += row[7];
-      cg.impressions += row[10] || 0;
-      if (row[8] > 0) { cg.ctrSum += row[8]; cg.ctrCount += 1; }
+      cg.impressions += rowImpressions(row);
+      accumulateCpmStats(cg, row);
 
       if (!creativeDayMap.has(creative)) creativeDayMap.set(creative, new Map());
       var cDay = creativeDayMap.get(creative);
@@ -452,7 +420,7 @@
       fc.spend += row[4];
       fc.conversionValue += row[6];
       fc.clicks += row[7];
-      fc.impressions += row[10] || 0;
+      fc.impressions += rowImpressions(row);
       fc.landingPageViews += row[11] || 0;
       fc.addsToCart += row[12] || 0;
       fc.checkoutsInitiated += row[13] || 0;
@@ -476,7 +444,7 @@
       var fd = funnelDayMap.get(day);
       fd.spend += row[4];
       fd.conversionValue += row[6];
-      fd.impressions += row[10] || 0;
+      fd.impressions += rowImpressions(row);
       fd.landingPageViews += row[11] || 0;
       fd.addsToCart += row[12] || 0;
       fd.checkoutsInitiated += row[13] || 0;
@@ -588,7 +556,7 @@
       summaryState.purchases += row[5];
       summaryState.conversionValue += row[6];
       summaryState.clicks += row[7];
-      summaryState.impressions += row[10] || 0;
+      summaryState.impressions += rowImpressions(row);
       summaryState.landingPageViews += row[11] || 0;
       summaryState.addsToCart += row[12] || 0;
       summaryState.checkoutsInitiated += row[13] || 0;
@@ -603,7 +571,7 @@
         summaryState.funnel.usClicks += row[7];
         summaryState.funnel.usPurchases += row[5];
         summaryState.funnel.usSpend += row[4];
-        summaryState.funnel.usImpressions += row[10] || 0;
+        summaryState.funnel.usImpressions += rowImpressions(row);
       }
 
       if (!timeMap.has(day)) {
@@ -614,13 +582,13 @@
       t.purchases += row[5];
       t.conversionValue += row[6];
       t.clicks += row[7];
-      t.impressions += row[10] || 0;
+      t.impressions += rowImpressions(row);
 
       if (!creativeMap.has(creative)) {
         creativeMap.set(creative, {
           creative: creative,
           launchDate: store.getLaunchDate(creative),
-          spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, ctrSum: 0, ctrCount: 0,
+          spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, cpmSum: 0, cpmCount: 0,
         });
       }
       var cg = creativeMap.get(creative);
@@ -628,8 +596,8 @@
       cg.purchases += row[5];
       cg.conversionValue += row[6];
       cg.clicks += row[7];
-      cg.impressions += row[10] || 0;
-      if (row[8] > 0) { cg.ctrSum += row[8]; cg.ctrCount += 1; }
+      cg.impressions += rowImpressions(row);
+      accumulateCpmStats(cg, row);
 
       if (!creativeDayMap.has(creative)) creativeDayMap.set(creative, new Map());
       var cDay = creativeDayMap.get(creative);
@@ -672,7 +640,7 @@
         acc.usClicks += row[7];
         acc.usPurchases += row[5];
         acc.usSpend += row[4];
-        acc.usImpressions += row[10] || 0;
+        acc.usImpressions += rowImpressions(row);
       }
 
       if (!funnelDayMap.has(day)) {
@@ -783,7 +751,7 @@
       purchases += row[5];
       conversionValue += row[6];
       clicks += row[7];
-      impressions += row[10] || 0;
+      impressions += rowImpressions(row);
       funnel.clicks += row[7];
       funnel.landingPageViews += row[11] || 0;
       funnel.addsToCart += row[12] || 0;
@@ -794,7 +762,7 @@
         funnel.usClicks += row[7];
         funnel.usPurchases += row[5];
         funnel.usSpend += row[4];
-        funnel.usImpressions += row[10] || 0;
+        funnel.usImpressions += rowImpressions(row);
       }
     });
 
@@ -831,7 +799,7 @@
       agg.purchases += row[5];
       agg.conversionValue += row[6];
       agg.clicks += row[7];
-      agg.impressions += row[10] || 0;
+      agg.impressions += rowImpressions(row);
     });
     return Array.from(map.values()).sort(function (a, b) { return a.date.localeCompare(b.date); }).map(function (row) {
       return Object.assign({}, row, {
@@ -851,7 +819,7 @@
         map.set(creative, {
           creative: creative,
           launchDate: store.getLaunchDate(creative),
-          spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, ctrSum: 0, ctrCount: 0,
+          spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, cpmSum: 0, cpmCount: 0,
         });
       }
       var g = map.get(creative);
@@ -859,16 +827,16 @@
       g.purchases += row[5];
       g.conversionValue += row[6];
       g.clicks += row[7];
-      g.impressions += row[10] || 0;
-      if (row[8] > 0) { g.ctrSum += row[8]; g.ctrCount += 1; }
+      g.impressions += rowImpressions(row);
+      accumulateCpmStats(g, row);
     });
     return Array.from(map.values()).map(function (g) {
       return Object.assign({}, g, {
         roas: g.spend > 0 ? g.conversionValue / g.spend : 0,
         cpa: g.purchases > 0 ? g.spend / g.purchases : 0,
-        ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : g.ctrCount > 0 ? g.ctrSum / g.ctrCount : 0,
+        ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0,
         cpc: g.clicks > 0 ? g.spend / g.clicks : 0,
-        cpm: g.impressions > 0 ? (g.spend / g.impressions) * 1000 : 0,
+        cpm: g.impressions > 0 ? (g.spend / g.impressions) * 1000 : g.cpmCount > 0 ? g.cpmSum / g.cpmCount : 0,
         daysLive: U.daysBetween(g.launchDate, latestDay || g.launchDate),
       });
     });
@@ -972,7 +940,7 @@
         item.usClicks += row[7];
         item.usPurchases += row[5];
         item.usSpend += row[4];
-        item.usImpressions += row[10] || 0;
+        item.usImpressions += rowImpressions(row);
       }
     });
     return Array.from(map.values()).map(function (item) {
