@@ -130,6 +130,61 @@
     };
   }
 
+  function rowImpressionsDirect(row) {
+    var imp = row[10] || 0;
+    if (imp > 0) return imp;
+    var ctr = row[8] || 0;
+    var clicks = row[7] || 0;
+    if (ctr > 0 && clicks > 0) return Math.round((clicks / ctr) * 100);
+    var cpm = row[16] || row[15] || 0;
+    var spend = row[4] || 0;
+    if (cpm > 0 && spend > 0) return Math.round((spend / cpm) * 1000);
+    return 0;
+  }
+
+  function buildImpressionHints(store) {
+    var byCreative = new Map();
+    var global = { clicks: 0, impressions: 0 };
+    var rows = store.rows;
+    var creatives = store.creatives;
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var imp = rowImpressionsDirect(row);
+      if (imp <= 0 || row[7] <= 0) continue;
+      var creative = creatives[row[3]];
+      if (!byCreative.has(creative)) byCreative.set(creative, { clicks: 0, impressions: 0 });
+      var hint = byCreative.get(creative);
+      hint.clicks += row[7];
+      hint.impressions += imp;
+      global.clicks += row[7];
+      global.impressions += imp;
+    }
+    return { byCreative: byCreative, global: global };
+  }
+
+  function estimateImpressionsFromHint(clicks, hint) {
+    if (!hint || hint.impressions <= 0 || hint.clicks <= 0 || clicks <= 0) return 0;
+    return Math.round(clicks / (hint.clicks / hint.impressions));
+  }
+
+  function effectiveRowImpressions(store, row) {
+    var direct = rowImpressionsDirect(row);
+    if (direct > 0) return direct;
+    if (!store.impressionHints || row[7] <= 0) return 0;
+    var creative = store.creatives[row[3]];
+    var hinted = estimateImpressionsFromHint(row[7], store.impressionHints.byCreative.get(creative));
+    if (hinted > 0) return hinted;
+    return estimateImpressionsFromHint(row[7], store.impressionHints.global);
+  }
+
+  function accumulateCpmStats(target, row) {
+    var cpm = row[16] || row[15] || 0;
+    if (cpm > 0) {
+      target.cpmSum += cpm;
+      target.cpmCount += 1;
+    }
+  }
+
   function filterDayMapEntries(dayMap, f) {
     if (!dayMap) return [];
     var entries = Array.from(dayMap.entries());
