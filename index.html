@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>投放效果分析看板</title>
   <link rel="preload" href="./public/fb/manifest.json" as="fetch" crossorigin />
-  <link rel="stylesheet" href="./css/style.css?v=20260703-1" />
+  <link rel="stylesheet" href="./css/style.css?v=20260703-2" />
 </head>
 <body>
   <div id="app">
@@ -652,32 +652,44 @@
             <textarea
               class="search-input lifecycle-search-input"
               v-model="lifecycleSearch"
-              rows="3"
+              rows="5"
               placeholder="每行一个素材名称，或用换行、逗号、Tab 分隔多个"
             ></textarea>
             <div class="lifecycle-controls-right">
-              <div class="lifecycle-date-range">
-                <input type="date" class="select-sm" v-model="lifecycleFilters.dateStart" @change="clearDatePreset('lifecycle')" @click="openDatePicker" />
-                <span class="date-sep">~</span>
-                <input type="date" class="select-sm" v-model="lifecycleFilters.dateEnd" @change="clearDatePreset('lifecycle')" @click="openDatePicker" />
+              <div class="lifecycle-controls-top">
+                <div class="lifecycle-date-range">
+                  <input type="date" class="select-sm" v-model="lifecycleFilters.dateStart" @change="clearDatePreset('lifecycle')" @click="openDatePicker" />
+                  <span class="date-sep">~</span>
+                  <input type="date" class="select-sm" v-model="lifecycleFilters.dateEnd" @change="clearDatePreset('lifecycle')" @click="openDatePicker" />
+                </div>
+                <div class="btn-group lifecycle-date-presets">
+                  <button type="button" :class="{ active: isDatePresetActive('yesterday', 'lifecycle') }" @click="applyDatePreset('yesterday', 'lifecycle')">昨天</button>
+                  <button type="button" :class="{ active: isDatePresetActive('last3', 'lifecycle') }" @click="applyDatePreset('last3', 'lifecycle')">过去 3 天</button>
+                  <button type="button" :class="{ active: isDatePresetActive('last7', 'lifecycle') }" @click="applyDatePreset('last7', 'lifecycle')">过去 7 天</button>
+                </div>
               </div>
-              <div class="btn-group lifecycle-date-presets">
-                <button type="button" :class="{ active: isDatePresetActive('yesterday', 'lifecycle') }" @click="applyDatePreset('yesterday', 'lifecycle')">昨天</button>
-                <button type="button" :class="{ active: isDatePresetActive('last3', 'lifecycle') }" @click="applyDatePreset('last3', 'lifecycle')">过去 3 天</button>
-                <button type="button" :class="{ active: isDatePresetActive('last7', 'lifecycle') }" @click="applyDatePreset('last7', 'lifecycle')">过去 7 天</button>
+              <select class="select-sm lifecycle-phase-select" v-model="lifecyclePhase">
+                <option value="">全部阶段</option>
+                <option value="test">测试期</option>
+                <option value="growth">增长期</option>
+                <option value="scale">起量期</option>
+                <option value="decline">衰退期</option>
+              </select>
+              <p class="lifecycle-meta">
+                筛选区间内共 <strong>{{ lifecycleStats.total }}</strong> 个素材
+                · 有花费 <strong>{{ lifecycleStats.activeInPeriod }}</strong> 个
+              </p>
+              <div class="legend-row lifecycle-legend">
+                <span class="legend-item"><span class="legend-dot phase-test"></span>测试期 {{ lifecycleStats.test }}</span>
+                <span class="legend-item"><span class="legend-dot phase-growth"></span>增长期 {{ lifecycleStats.growth }}</span>
+                <span class="legend-item"><span class="legend-dot phase-scale"></span>起量期 {{ lifecycleStats.scale }}</span>
+                <span class="legend-item">
+                  <span class="legend-dot phase-decline"></span>
+                  衰退期 {{ lifecycleStats.decline }}
+                  <span class="legend-extra">· 区间内有花费 {{ lifecycleStats.activeInPeriod }} 个</span>
+                </span>
               </div>
             </div>
-            <p class="lifecycle-meta">
-              筛选区间内共 <strong>{{ lifecycleStats.total }}</strong> 个素材
-              · 有花费 <strong>{{ lifecycleStats.activeInPeriod }}</strong> 个
-            </p>
-            <select class="select-sm lifecycle-phase-select" v-model="lifecyclePhase">
-              <option value="">全部阶段</option>
-              <option value="test">测试期</option>
-              <option value="growth">增长期</option>
-              <option value="scale">起量期</option>
-              <option value="decline">衰退期</option>
-            </select>
           </div>
           <div class="lifecycle-numeric-filters">
             <label class="lifecycle-numeric-filter">
@@ -731,17 +743,6 @@
                 placeholder="< 最大"
               />
             </label>
-          </div>
-
-          <div class="legend-row">
-            <span class="legend-item"><span class="legend-dot phase-test"></span>测试期 {{ lifecycleStats.test }}</span>
-            <span class="legend-item"><span class="legend-dot phase-growth"></span>增长期 {{ lifecycleStats.growth }}</span>
-            <span class="legend-item"><span class="legend-dot phase-scale"></span>起量期 {{ lifecycleStats.scale }}</span>
-            <span class="legend-item">
-              <span class="legend-dot phase-decline"></span>
-              衰退期 {{ lifecycleStats.decline }}
-              <span class="legend-extra">· 区间内有花费 {{ lifecycleStats.activeInPeriod }} 个</span>
-            </span>
           </div>
 
           <div class="table-wrap lifecycle-table-wrap">
