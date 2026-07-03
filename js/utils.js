@@ -1,7 +1,8 @@
 (function (global) {
-  var OPTIMIZER_NAMES = ['Alina', 'Barry', 'Dom', 'Creative', 'Angie'];
+  var OPTIMIZER_NAMES = ['Alina', 'Barry', 'Dom', 'Creative', 'Angie', 'Yuly'];
 
   var OPTIMIZER_RULES = [
+    { key: 'Yuly', match: 'yuly' },
     { key: 'Creative', match: 'creative' },
     { key: 'Barry', match: 'barry' },
     { key: 'Angie', match: 'angie' },
@@ -182,6 +183,7 @@
 
   function parseOptimizerFromAccount(accountName) {
     var lower = (accountName || '').toLowerCase();
+    if (lower.indexOf('creative_yuly') >= 0 || lower.indexOf('_creative_yuly') >= 0) return 'Creative';
     for (var i = 0; i < OPTIMIZER_RULES.length; i++) {
       if (lower.indexOf(OPTIMIZER_RULES[i].match) >= 0) return OPTIMIZER_RULES[i].key;
     }

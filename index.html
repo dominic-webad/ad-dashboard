@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>投放效果分析看板</title>
   <link rel="preload" href="./public/fb/manifest.json" as="fetch" crossorigin />
-  <link rel="stylesheet" href="./css/style.css?v=20260703-2" />
+  <link rel="stylesheet" href="./css/style.css?v=20260703-3" />
 </head>
 <body>
   <div id="app">
@@ -648,13 +648,68 @@
               <p class="hint">测试期 &lt;$100 · 增长期 $100-500 · 起量期 &gt;$500 · 衰退期 总消耗&gt;$500 且总 ROI&lt;0.3 且近3天 ROAS 连续&lt;0.25</p>
             </div>
           </div>
-          <div class="lifecycle-controls">
-            <textarea
-              class="search-input lifecycle-search-input"
-              v-model="lifecycleSearch"
-              rows="5"
-              placeholder="每行一个素材名称，或用换行、逗号、Tab 分隔多个"
-            ></textarea>
+          <div class="lifecycle-toolbar">
+            <div class="lifecycle-left">
+              <textarea
+                class="search-input lifecycle-search-input"
+                v-model="lifecycleSearch"
+                rows="2"
+                placeholder="每行一个素材名称，或用换行、逗号、Tab 分隔多个"
+              ></textarea>
+              <div class="lifecycle-numeric-filters">
+                <label class="lifecycle-numeric-filter">
+                  <span>消耗</span>
+                  <input
+                    type="text"
+                    inputmode="decimal"
+                    class="select-sm lifecycle-numeric-input"
+                    v-model="lifecycleNumericFilters.spendMin"
+                    placeholder="> 最小"
+                  />
+                  <input
+                    type="text"
+                    inputmode="decimal"
+                    class="select-sm lifecycle-numeric-input"
+                    v-model="lifecycleNumericFilters.spendMax"
+                    placeholder="< 最大"
+                  />
+                </label>
+                <label class="lifecycle-numeric-filter">
+                  <span>ROAS</span>
+                  <input
+                    type="text"
+                    inputmode="decimal"
+                    class="select-sm lifecycle-numeric-input"
+                    v-model="lifecycleNumericFilters.roasMin"
+                    placeholder="> 最小"
+                  />
+                  <input
+                    type="text"
+                    inputmode="decimal"
+                    class="select-sm lifecycle-numeric-input"
+                    v-model="lifecycleNumericFilters.roasMax"
+                    placeholder="< 最大"
+                  />
+                </label>
+                <label class="lifecycle-numeric-filter">
+                  <span>使用次数</span>
+                  <input
+                    type="text"
+                    inputmode="numeric"
+                    class="select-sm lifecycle-numeric-input"
+                    v-model="lifecycleNumericFilters.usageCountMin"
+                    placeholder="> 最小"
+                  />
+                  <input
+                    type="text"
+                    inputmode="numeric"
+                    class="select-sm lifecycle-numeric-input"
+                    v-model="lifecycleNumericFilters.usageCountMax"
+                    placeholder="< 最大"
+                  />
+                </label>
+              </div>
+            </div>
             <div class="lifecycle-controls-right">
               <div class="lifecycle-controls-top">
                 <div class="lifecycle-date-range">
@@ -690,59 +745,6 @@
                 </span>
               </div>
             </div>
-          </div>
-          <div class="lifecycle-numeric-filters">
-            <label class="lifecycle-numeric-filter">
-              <span>消耗</span>
-              <input
-                type="text"
-                inputmode="decimal"
-                class="select-sm lifecycle-numeric-input"
-                v-model="lifecycleNumericFilters.spendMin"
-                placeholder="> 最小"
-              />
-              <input
-                type="text"
-                inputmode="decimal"
-                class="select-sm lifecycle-numeric-input"
-                v-model="lifecycleNumericFilters.spendMax"
-                placeholder="< 最大"
-              />
-            </label>
-            <label class="lifecycle-numeric-filter">
-              <span>ROAS</span>
-              <input
-                type="text"
-                inputmode="decimal"
-                class="select-sm lifecycle-numeric-input"
-                v-model="lifecycleNumericFilters.roasMin"
-                placeholder="> 最小"
-              />
-              <input
-                type="text"
-                inputmode="decimal"
-                class="select-sm lifecycle-numeric-input"
-                v-model="lifecycleNumericFilters.roasMax"
-                placeholder="< 最大"
-              />
-            </label>
-            <label class="lifecycle-numeric-filter">
-              <span>使用次数</span>
-              <input
-                type="text"
-                inputmode="numeric"
-                class="select-sm lifecycle-numeric-input"
-                v-model="lifecycleNumericFilters.usageCountMin"
-                placeholder="> 最小"
-              />
-              <input
-                type="text"
-                inputmode="numeric"
-                class="select-sm lifecycle-numeric-input"
-                v-model="lifecycleNumericFilters.usageCountMax"
-                placeholder="< 最大"
-              />
-            </label>
           </div>
 
           <div class="table-wrap lifecycle-table-wrap">
@@ -803,7 +805,7 @@
             </div>
             <form class="auth-form auth-form-modal" @submit.prevent="handleLogin">
               <label class="auth-label">用户名</label>
-              <input v-model="loginForm.username" class="auth-input auth-input-block" type="text" placeholder="admin / alina / barry / angie / dom" autocomplete="username" required />
+              <input v-model="loginForm.username" class="auth-input auth-input-block" type="text" placeholder="admin / alina / barry / angie / dom / yuly" autocomplete="username" required />
               <label class="auth-label">密码</label>
               <input v-model="loginForm.password" class="auth-input auth-input-block" type="password" placeholder="请输入密码" autocomplete="current-password" required />
               <p v-if="loginError" class="auth-error">{{ loginError }}</p>
@@ -851,7 +853,7 @@
 
   <script>
     (function () {
-      var BUILD = '20260703-1';
+      var BUILD = '20260703-3';
       var appEl = document.getElementById('app');
 
       function showBootError(message) {

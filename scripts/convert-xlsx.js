@@ -8,7 +8,7 @@ const ROOT = path.join(__dirname, '..');
 const DATA_DIR = ROOT;
 const OUT_DIR = path.join(ROOT, 'public', 'fb');
 const TMP_ROOT = '/tmp/xlsx_convert';
-const OPTIMIZERS = ['Alina', 'Barry', 'Dom', 'Creative', 'Angie'];
+const OPTIMIZERS = ['Alina', 'Barry', 'Dom', 'Creative', 'Angie', 'Yuly'];
 
 function colToIndex(col) {
   let idx = 0;
@@ -32,6 +32,8 @@ function parseCreative(adName) {
 
 function parseOptimizer(accountName) {
   const lower = (accountName || '').toLowerCase();
+  if (lower.includes('creative_yuly') || lower.includes('_creative_yuly')) return 'Creative';
+  if (lower.includes('yuly')) return 'Yuly';
   if (lower.includes('creative')) return 'Creative';
   if (lower.includes('barry')) return 'Barry';
   if (lower.includes('angie')) return 'Angie';

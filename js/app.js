@@ -523,29 +523,41 @@
         }));
       }
 
+      function materialFilter(dateStart, dateEnd) {
+        return {
+          dateStart: dateStart || '',
+          dateEnd: dateEnd || '',
+          optimizer: '',
+          optimizers: [],
+          accounts: [],
+          countries: [],
+        };
+      }
+
       function compareFilter() {
-        return applyOptimizerScope(Object.assign({}, dimFilter(), {
-          dateStart: compareFilters.value.dateStart,
-          dateEnd: compareFilters.value.dateEnd,
-        }));
+        return materialFilter(
+          compareFilters.value.dateStart,
+          compareFilters.value.dateEnd
+        );
       }
 
       function lifecycleFilter() {
-        return applyOptimizerScope(Object.assign({}, dimFilter(), {
-          dateStart: lifecycleFilters.value.dateStart || filters.value.dateStart,
-          dateEnd: lifecycleFilters.value.dateEnd || filters.value.dateEnd,
-        }));
+        return materialFilter(
+          lifecycleFilters.value.dateStart || filters.value.dateStart,
+          lifecycleFilters.value.dateEnd || filters.value.dateEnd
+        );
+      }
+
+      function creativeTrendFilter() {
+        if (platformConfig.value.detailModal.trendDaysFixed) {
+          return buildDetailTrendFilter();
+        }
+        var range = resolveDatePreset('last14');
+        return materialFilter(range.start, range.end);
       }
 
       function dailyTrendFilter() {
-        if (platformConfig.value.detailModal.trendDaysFixed) {
-          return applyOptimizerScope(buildDetailTrendFilter());
-        }
-        var range = resolveDatePreset('last14');
-        return applyOptimizerScope(Object.assign({}, dimFilter(), {
-          dateStart: range.start,
-          dateEnd: range.end,
-        }));
+        return creativeTrendFilter();
       }
 
       function protectedFilter() {
@@ -621,6 +633,7 @@
       });
 
       var latestDay = computed(function () {
+        if (store.value && store.value.dataLatestDay) return store.value.dataLatestDay;
         return globalBundle.value ? globalBundle.value.latestDay : '';
       });
 
@@ -776,12 +789,12 @@
       });
 
       var potentialResult = computed(function () {
-        if (!store.value || !globalBundle.value) {
+        if (!store.value || !store.value.creativeDayMap) {
           return { windowDays: headCreativeWindow.value, items: [] };
         }
         var minRoas = platformConfig.value.headCreative.minRoas;
         return store.value.findRisingFromBundle(
-          globalBundle.value.creativeDayMap,
+          store.value.creativeDayMap,
           latestDay.value,
           headCreativeWindow.value,
           minRoas
@@ -1726,9 +1739,7 @@
       }
 
       function openCreativeDetail(item) {
-        detailQueryFilter.value = platformConfig.value.detailModal.trendDaysFixed
-          ? applyOptimizerScope(buildDetailTrendFilter())
-          : null;
+        detailQueryFilter.value = creativeTrendFilter();
         detailModal.value = {
           show: true,
           type: 'creative',

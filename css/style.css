@@ -1332,7 +1332,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   margin-bottom: 8px;
 }
 
-.lifecycle-controls {
+.lifecycle-toolbar {
   display: grid;
   grid-template-columns: minmax(320px, 1fr) auto;
   gap: 8px 16px;
@@ -1341,19 +1341,31 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   align-items: stretch;
 }
 
+.lifecycle-left {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
 .lifecycle-search-input {
-  grid-column: 1;
-  grid-row: 1;
+  flex: 1 1 auto;
   width: 100%;
   min-width: 0;
-  min-height: calc(var(--life-control-h) * 3 + 16px);
-  height: 100%;
+  min-height: var(--life-control-h);
+  height: auto;
   padding: 8px 11px;
   font-size: 0.875rem;
   line-height: 1.4;
-  resize: vertical;
+  resize: none;
   font-family: inherit;
   box-sizing: border-box;
+}
+
+.lifecycle-left .lifecycle-numeric-filters {
+  flex: 0 0 auto;
+  margin-bottom: 0;
 }
 
 .lifecycle-controls-right {
@@ -1380,14 +1392,14 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .lifecycle-controls .lifecycle-date-range input.select-sm,
-.lifecycle-controls .lifecycle-phase-select {
+.lifecycle-toolbar .lifecycle-phase-select {
   height: var(--life-control-h);
   padding: 0 10px;
   font-size: 0.875rem;
   box-sizing: border-box;
 }
 
-.lifecycle-controls .lifecycle-date-presets.btn-group {
+.lifecycle-toolbar .lifecycle-date-presets.btn-group {
   height: var(--life-control-h);
   padding: 3px;
   display: inline-flex;
@@ -1395,7 +1407,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   box-sizing: border-box;
 }
 
-.lifecycle-controls .lifecycle-date-presets button {
+.lifecycle-toolbar .lifecycle-date-presets button {
   height: calc(var(--life-control-h) - 6px);
   padding: 0 12px;
   display: inline-flex;
