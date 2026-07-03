@@ -176,8 +176,8 @@
     var v = Number(value) || 0;
     var min = parseFilterBound(minRaw);
     var max = parseFilterBound(maxRaw);
-    if (min != null && v <= min) return false;
-    if (max != null && v >= max) return false;
+    if (min != null && v < min) return false;
+    if (max != null && v > max) return false;
     return true;
   }
 

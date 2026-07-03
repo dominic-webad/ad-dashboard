@@ -664,14 +664,14 @@
                     inputmode="decimal"
                     class="select-sm lifecycle-numeric-input"
                     v-model="lifecycleNumericFilters.spendMin"
-                    placeholder="> 最小"
+                    placeholder="≥"
                   />
                   <input
                     type="text"
                     inputmode="decimal"
                     class="select-sm lifecycle-numeric-input"
                     v-model="lifecycleNumericFilters.spendMax"
-                    placeholder="< 最大"
+                    placeholder="≤"
                   />
                 </label>
                 <label class="lifecycle-numeric-filter">
@@ -681,14 +681,14 @@
                     inputmode="decimal"
                     class="select-sm lifecycle-numeric-input"
                     v-model="lifecycleNumericFilters.roasMin"
-                    placeholder="> 最小"
+                    placeholder="≥"
                   />
                   <input
                     type="text"
                     inputmode="decimal"
                     class="select-sm lifecycle-numeric-input"
                     v-model="lifecycleNumericFilters.roasMax"
-                    placeholder="< 最大"
+                    placeholder="≤"
                   />
                 </label>
                 <label class="lifecycle-numeric-filter">
@@ -698,14 +698,14 @@
                     inputmode="numeric"
                     class="select-sm lifecycle-numeric-input"
                     v-model="lifecycleNumericFilters.usageCountMin"
-                    placeholder="> 最小"
+                    placeholder="≥"
                   />
                   <input
                     type="text"
                     inputmode="numeric"
                     class="select-sm lifecycle-numeric-input"
                     v-model="lifecycleNumericFilters.usageCountMax"
-                    placeholder="< 最大"
+                    placeholder="≤"
                   />
                 </label>
               </div>
@@ -853,7 +853,7 @@
 
   <script>
     (function () {
-      var BUILD = '20260703-3';
+      var BUILD = '20260703-4';
       var appEl = document.getElementById('app');
 
       function showBootError(message) {
