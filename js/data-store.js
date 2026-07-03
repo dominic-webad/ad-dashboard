@@ -379,6 +379,7 @@
           creative: creative,
           launchDate: store.getLaunchDate(creative),
           spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, cpmSum: 0, cpmCount: 0,
+          usageCount: 0,
         });
       }
       var cg = creativeMap.get(creative);
@@ -387,6 +388,7 @@
       cg.conversionValue += row[6];
       cg.clicks += row[7];
       cg.impressions += rowImpressions(row);
+      cg.usageCount += 1;
       accumulateCpmStats(cg, row);
 
       if (!creativeDayMap.has(creative)) creativeDayMap.set(creative, new Map());
@@ -589,6 +591,7 @@
           creative: creative,
           launchDate: store.getLaunchDate(creative),
           spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, cpmSum: 0, cpmCount: 0,
+          usageCount: 0,
         });
       }
       var cg = creativeMap.get(creative);
@@ -597,6 +600,7 @@
       cg.conversionValue += row[6];
       cg.clicks += row[7];
       cg.impressions += rowImpressions(row);
+      cg.usageCount += 1;
       accumulateCpmStats(cg, row);
 
       if (!creativeDayMap.has(creative)) creativeDayMap.set(creative, new Map());

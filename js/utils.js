@@ -121,6 +121,49 @@
     return name.indexOf(term) >= 0;
   }
 
+  function parseNumericFilterValue(raw) {
+    var s = String(raw || '').trim().replace(/%$/, '').replace(/,/g, '');
+    if (!s || !/^[\d.]+$/.test(s)) return NaN;
+    return parseFloat(s);
+  }
+
+  function parseNumericFilter(text) {
+    var s = String(text || '').trim();
+    if (!s) return null;
+    var rangeMatch = s.match(/^([\d.]+%?)\s*[~～\-–—]\s*([\d.]+%?)$/);
+    if (rangeMatch) {
+      var min = parseNumericFilterValue(rangeMatch[1]);
+      var max = parseNumericFilterValue(rangeMatch[2]);
+      if (isNaN(min) || isNaN(max)) return null;
+      return { type: 'range', min: min, max: max };
+    }
+    var opMatch = s.match(/^(>=|<=|>|<|=)\s*([\d.]+%?)$/);
+    if (opMatch) {
+      var value = parseNumericFilterValue(opMatch[2]);
+      if (isNaN(value)) return null;
+      return { type: 'op', op: opMatch[1], value: value };
+    }
+    return null;
+  }
+
+  function matchesNumericFilter(value, filter) {
+    if (!filter) return true;
+    var v = Number(value) || 0;
+    if (filter.type === 'range') {
+      var min = Math.min(filter.min, filter.max);
+      var max = Math.max(filter.min, filter.max);
+      return v >= min && v <= max;
+    }
+    if (filter.type === 'op') {
+      if (filter.op === '>') return v > filter.value;
+      if (filter.op === '>=') return v >= filter.value;
+      if (filter.op === '<') return v < filter.value;
+      if (filter.op === '<=') return v <= filter.value;
+      if (filter.op === '=') return v === filter.value;
+    }
+    return true;
+  }
+
   function parseOptimizerFromAccount(accountName) {
     var lower = (accountName || '').toLowerCase();
     for (var i = 0; i < OPTIMIZER_RULES.length; i++) {
@@ -674,6 +717,8 @@
     parseOptimizerFromAccount: parseOptimizerFromAccount,
     parseCreativeSearchTerms: parseCreativeSearchTerms,
     creativeMatchesSearchTerm: creativeMatchesSearchTerm,
+    parseNumericFilter: parseNumericFilter,
+    matchesNumericFilter: matchesNumericFilter,
     OPTIMIZER_NAMES: OPTIMIZER_NAMES,
   };
 })(window);

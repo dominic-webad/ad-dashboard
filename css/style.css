@@ -1315,13 +1315,14 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .lifecycle-panel {
   --life-control-h: 38px;
-  --life-col-creative: 39%;
-  --life-col-spend: 9%;
+  --life-col-creative: 35%;
+  --life-col-spend: 8%;
   --life-col-roas: 7%;
   --life-col-purchases: 6%;
   --life-col-cpa: 7%;
-  --life-col-ctr: 7%;
+  --life-col-ctr: 6%;
   --life-col-cpm: 6%;
+  --life-col-usage: 6%;
   --life-col-ramp: 7%;
   --life-col-phase: 6%;
   --life-col-detail: 6%;
@@ -1409,6 +1410,34 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   min-width: 96px;
 }
 
+.lifecycle-numeric-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-bottom: 8px;
+}
+
+.lifecycle-numeric-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.lifecycle-numeric-filter span {
+  white-space: nowrap;
+}
+
+.lifecycle-numeric-input {
+  width: 148px;
+  height: var(--life-control-h);
+  padding: 0 10px;
+  font-size: 0.875rem;
+  box-sizing: border-box;
+}
+
 .lifecycle-panel .lifecycle-table {
   table-layout: fixed;
 }
@@ -1460,7 +1489,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .lifecycle-panel .lifecycle-table th:nth-child(8),
 .lifecycle-panel .lifecycle-table td:nth-child(8) {
-  width: var(--life-col-ramp);
+  width: var(--life-col-usage);
   padding-left: 6px;
   padding-right: 6px;
   white-space: nowrap;
@@ -1468,13 +1497,21 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .lifecycle-panel .lifecycle-table th:nth-child(9),
 .lifecycle-panel .lifecycle-table td:nth-child(9) {
+  width: var(--life-col-ramp);
+  padding-left: 6px;
+  padding-right: 6px;
+  white-space: nowrap;
+}
+
+.lifecycle-panel .lifecycle-table th:nth-child(10),
+.lifecycle-panel .lifecycle-table td:nth-child(10) {
   width: var(--life-col-phase);
   padding-left: 6px;
   padding-right: 6px;
 }
 
-.lifecycle-panel .lifecycle-table th:nth-child(10),
-.lifecycle-panel .lifecycle-table td:nth-child(10) {
+.lifecycle-panel .lifecycle-table th:nth-child(11),
+.lifecycle-panel .lifecycle-table td:nth-child(11) {
   width: var(--life-col-detail);
   padding-left: 6px;
   padding-right: 6px;
@@ -1482,13 +1519,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   text-align: center;
 }
 
-.lifecycle-panel .lifecycle-table th:nth-child(n+2):not(:nth-child(9)):not(:nth-child(10)),
-.lifecycle-panel .lifecycle-table td:nth-child(n+2):not(:nth-child(9)):not(:nth-child(10)) {
+.lifecycle-panel .lifecycle-table th:nth-child(n+2):not(:nth-child(10)):not(:nth-child(11)),
+.lifecycle-panel .lifecycle-table td:nth-child(n+2):not(:nth-child(10)):not(:nth-child(11)) {
   text-align: right;
 }
 
-.lifecycle-panel .lifecycle-table th:nth-child(9),
-.lifecycle-panel .lifecycle-table td:nth-child(9) {
+.lifecycle-panel .lifecycle-table th:nth-child(10),
+.lifecycle-panel .lifecycle-table td:nth-child(10) {
   text-align: center;
 }
 

@@ -49,6 +49,7 @@
       var topN = ref(15);
       var lifecycleSearch = ref('');
       var lifecyclePhase = ref('');
+      var lifecycleNumericFilters = ref({ spend: '', roas: '', usageCount: '' });
       var lifecycleSortKey = ref('spend');
       var lifecycleSortDir = ref('desc');
       var headCreativeWindow = ref(7);
@@ -711,6 +712,17 @@
             return searchTerms.some(function (q) {
               return U.creativeMatchesSearchTerm(i.creative, q);
             });
+          });
+        }
+        var spendFilter = U.parseNumericFilter(lifecycleNumericFilters.value.spend);
+        var roasFilter = U.parseNumericFilter(lifecycleNumericFilters.value.roas);
+        var usageFilter = U.parseNumericFilter(lifecycleNumericFilters.value.usageCount);
+        if (spendFilter || roasFilter || usageFilter) {
+          items = items.filter(function (i) {
+            if (!U.matchesNumericFilter(i.spend, spendFilter)) return false;
+            if (!U.matchesNumericFilter(i.roas, roasFilter)) return false;
+            if (!U.matchesNumericFilter(i.usageCount, usageFilter)) return false;
+            return true;
           });
         }
         var key = lifecycleSortKey.value;
@@ -1539,6 +1551,7 @@
         countrySearch.value = '';
         lifecycleSearch.value = '';
         lifecyclePhase.value = '';
+        lifecycleNumericFilters.value = { spend: '', roas: '', usageCount: '' };
       }
 
       function showCopyToast(evt, message) {
@@ -2104,6 +2117,7 @@
         topN: topN,
         lifecycleSearch: lifecycleSearch,
         lifecyclePhase: lifecyclePhase,
+        lifecycleNumericFilters: lifecycleNumericFilters,
         lifecycleSortKey: lifecycleSortKey,
         lifecycleSortDir: lifecycleSortDir,
         headCreativeWindow: headCreativeWindow,
