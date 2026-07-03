@@ -49,7 +49,11 @@
       var topN = ref(15);
       var lifecycleSearch = ref('');
       var lifecyclePhase = ref('');
-      var lifecycleNumericFilters = ref({ spend: '', roas: '', usageCount: '' });
+      var lifecycleNumericFilters = ref({
+        spendMin: '', spendMax: '',
+        roasMin: '', roasMax: '',
+        usageCountMin: '', usageCountMax: '',
+      });
       var lifecycleSortKey = ref('spend');
       var lifecycleSortDir = ref('desc');
       var headCreativeWindow = ref(7);
@@ -714,17 +718,13 @@
             });
           });
         }
-        var spendFilter = U.parseNumericFilter(lifecycleNumericFilters.value.spend);
-        var roasFilter = U.parseNumericFilter(lifecycleNumericFilters.value.roas);
-        var usageFilter = U.parseNumericFilter(lifecycleNumericFilters.value.usageCount);
-        if (spendFilter || roasFilter || usageFilter) {
-          items = items.filter(function (i) {
-            if (!U.matchesNumericFilter(i.spend, spendFilter)) return false;
-            if (!U.matchesNumericFilter(i.roas, roasFilter)) return false;
-            if (!U.matchesNumericFilter(i.usageCount, usageFilter)) return false;
-            return true;
-          });
-        }
+        var nf = lifecycleNumericFilters.value;
+        items = items.filter(function (i) {
+          if (!U.matchesMinMaxFilter(i.spend, nf.spendMin, nf.spendMax)) return false;
+          if (!U.matchesMinMaxFilter(i.roas, nf.roasMin, nf.roasMax)) return false;
+          if (!U.matchesMinMaxFilter(i.usageCount, nf.usageCountMin, nf.usageCountMax)) return false;
+          return true;
+        });
         var key = lifecycleSortKey.value;
         var dir = lifecycleSortDir.value === 'asc' ? 1 : -1;
         var phaseOrder = { test: 1, growth: 2, scale: 3, decline: 4 };
@@ -1551,7 +1551,11 @@
         countrySearch.value = '';
         lifecycleSearch.value = '';
         lifecyclePhase.value = '';
-        lifecycleNumericFilters.value = { spend: '', roas: '', usageCount: '' };
+        lifecycleNumericFilters.value = {
+          spendMin: '', spendMax: '',
+          roasMin: '', roasMax: '',
+          usageCountMin: '', usageCountMax: '',
+        };
       }
 
       function showCopyToast(evt, message) {

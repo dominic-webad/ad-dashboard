@@ -1431,9 +1431,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .lifecycle-numeric-input {
-  width: 148px;
+  width: 88px;
   height: var(--life-control-h);
-  padding: 0 10px;
+  padding: 0 8px;
   font-size: 0.875rem;
   box-sizing: border-box;
 }

@@ -269,9 +269,17 @@
     });
   }
 
+  function trackCreativeUsage(cg, row) {
+    if (!cg._usageKeys) cg._usageKeys = new Set();
+    var key = row[1] + '\0' + row[0];
+    if (cg._usageKeys.has(key)) return;
+    cg._usageKeys.add(key);
+    cg.usageCount += 1;
+  }
+
   function finalizeCreativeList(creativeMap, latestDay, store) {
     return Array.from(creativeMap.values()).map(function (g) {
-      return Object.assign({}, g, {
+      var result = Object.assign({}, g, {
         roas: g.spend > 0 ? g.conversionValue / g.spend : 0,
         cpa: g.purchases > 0 ? g.spend / g.purchases : 0,
         ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0,
@@ -279,6 +287,8 @@
         cpm: g.impressions > 0 ? (g.spend / g.impressions) * 1000 : g.cpmCount > 0 ? g.cpmSum / g.cpmCount : 0,
         daysLive: U.daysBetween(g.launchDate, latestDay || g.launchDate),
       });
+      delete result._usageKeys;
+      return result;
     });
   }
 
@@ -388,7 +398,7 @@
       cg.conversionValue += row[6];
       cg.clicks += row[7];
       cg.impressions += rowImpressions(row);
-      cg.usageCount += 1;
+      trackCreativeUsage(cg, row);
       accumulateCpmStats(cg, row);
 
       if (!creativeDayMap.has(creative)) creativeDayMap.set(creative, new Map());
@@ -600,7 +610,7 @@
       cg.conversionValue += row[6];
       cg.clicks += row[7];
       cg.impressions += rowImpressions(row);
-      cg.usageCount += 1;
+      trackCreativeUsage(cg, row);
       accumulateCpmStats(cg, row);
 
       if (!creativeDayMap.has(creative)) creativeDayMap.set(creative, new Map());

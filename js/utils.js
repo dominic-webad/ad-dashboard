@@ -164,6 +164,22 @@
     return true;
   }
 
+  function parseFilterBound(raw) {
+    var s = String(raw || '').trim().replace(/,/g, '');
+    if (!s) return null;
+    var n = parseFloat(s);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function matchesMinMaxFilter(value, minRaw, maxRaw) {
+    var v = Number(value) || 0;
+    var min = parseFilterBound(minRaw);
+    var max = parseFilterBound(maxRaw);
+    if (min != null && v <= min) return false;
+    if (max != null && v >= max) return false;
+    return true;
+  }
+
   function parseOptimizerFromAccount(accountName) {
     var lower = (accountName || '').toLowerCase();
     for (var i = 0; i < OPTIMIZER_RULES.length; i++) {
@@ -719,6 +735,7 @@
     creativeMatchesSearchTerm: creativeMatchesSearchTerm,
     parseNumericFilter: parseNumericFilter,
     matchesNumericFilter: matchesNumericFilter,
+    matchesMinMaxFilter: matchesMinMaxFilter,
     OPTIMIZER_NAMES: OPTIMIZER_NAMES,
   };
 })(window);

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>投放效果分析看板</title>
   <link rel="preload" href="./public/fb/manifest.json" as="fetch" crossorigin />
-  <link rel="stylesheet" href="./css/style.css?v=20260618-7" />
+  <link rel="stylesheet" href="./css/style.css?v=20260703-1" />
 </head>
 <body>
   <div id="app">
@@ -684,27 +684,51 @@
               <span>消耗</span>
               <input
                 type="text"
+                inputmode="decimal"
                 class="select-sm lifecycle-numeric-input"
-                v-model="lifecycleNumericFilters.spend"
-                placeholder=">100 / <500 / 100~500"
+                v-model="lifecycleNumericFilters.spendMin"
+                placeholder="> 最小"
+              />
+              <input
+                type="text"
+                inputmode="decimal"
+                class="select-sm lifecycle-numeric-input"
+                v-model="lifecycleNumericFilters.spendMax"
+                placeholder="< 最大"
               />
             </label>
             <label class="lifecycle-numeric-filter">
               <span>ROAS</span>
               <input
                 type="text"
+                inputmode="decimal"
                 class="select-sm lifecycle-numeric-input"
-                v-model="lifecycleNumericFilters.roas"
-                placeholder=">0.3 / <1 / 0.25~0.8"
+                v-model="lifecycleNumericFilters.roasMin"
+                placeholder="> 最小"
+              />
+              <input
+                type="text"
+                inputmode="decimal"
+                class="select-sm lifecycle-numeric-input"
+                v-model="lifecycleNumericFilters.roasMax"
+                placeholder="< 最大"
               />
             </label>
             <label class="lifecycle-numeric-filter">
               <span>使用次数</span>
               <input
                 type="text"
+                inputmode="numeric"
                 class="select-sm lifecycle-numeric-input"
-                v-model="lifecycleNumericFilters.usageCount"
-                placeholder=">1 / <10 / 3~20"
+                v-model="lifecycleNumericFilters.usageCountMin"
+                placeholder="> 最小"
+              />
+              <input
+                type="text"
+                inputmode="numeric"
+                class="select-sm lifecycle-numeric-input"
+                v-model="lifecycleNumericFilters.usageCountMax"
+                placeholder="< 最大"
               />
             </label>
           </div>
@@ -826,7 +850,7 @@
 
   <script>
     (function () {
-      var BUILD = '20260618-8';
+      var BUILD = '20260703-1';
       var appEl = document.getElementById('app');
 
       function showBootError(message) {
