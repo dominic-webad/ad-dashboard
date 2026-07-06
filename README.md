@@ -9,77 +9,24 @@ Meta 与 AppLovin 双平台统一看板，单一入口 `index.html`，顶部 Tab
 - **AppLovin 看板**：Creative Set 维度、国家漏斗、D0/D7 ROAS 等
 - **权限**：Meta 核心 KPI/漏斗需登录（优化师有数据范围）；AppLovin 漏斗/素材公开，**核心 KPI/趋势仅 admin**
 - **按需加载**：首次仅加载**本月 + 上月**数据；当日期筛选涉及更早月份时再自动拉取对应 JSON
+- **素材标签**：生命周期表格支持自定义标签（在线保存、团队共享）；标签筛选框带已用标签下拉
 
-## 快速启动
+## 素材标签配置
 
-### 1. 每日更新数据
+标签数据保存在 `public/fb/creative-tags.json` 与 `public/applovin/creative-tags.json`。
 
-每日将新报表直接放入仓库根目录（例如 `/Users/dominic/Downloads/GitHub/ad-dashboard`）后运行转换脚本：
+### 在线编辑（团队共享）
 
-| 平台 | 放入目录 | 文件名格式 |
-|------|----------|-----------|
-| Meta | 仓库根目录 | `Untitled-report_MMDD.xlsx` |
-| AppLovin | 仓库根目录 | `report_YYYY-MM-DD_*.csv` |
+1. 在 GitHub 创建 **Fine-grained Personal Access Token**
+   - 仓库：`dominic-webad/ad-dashboard`（或你的 fork）
+   - 权限：**Contents — Read and write**
+2. 线上版已内置 `js/tags-config.js`（含 GitHub Token，push 后即可在线编辑标签）
+3. 若需本地单独配置，可复制 `js/tags-config.example.js` 覆盖
+4. 部署后，优化师在生命周期表格「标签」列输入即可自动保存；其他人约 30 秒内自动同步
 
-```bash
-cd /Users/dominic/Downloads/GitHub/ad-dashboard
+未配置 Token 时标签只读，仍可从静态 JSON 查看。
 
-# Meta 增量
-node scripts/convert-xlsx.js
+### 安全说明
 
-# AppLovin 增量
-node scripts/convert-applovin-csv.js
-```
+Token 写在前端可被查看源码的人提取。请使用最小权限 Fine-grained PAT，泄露后立即在 GitHub 轮换。
 
-脚本会更新 `public/{platform}/manifest.json` 与按 **7 天一段** 的 `{YYYY-MM}/{DD-DD}.json`。已收录文件名记录在 manifest 的 `sourceFiles`，处理完源文件可从仓库根目录移走。
-
-若已有按月整文件、需改为按周分段（不重新跑 xlsx/csv 转换）：
-
-```bash
-node scripts/resplit-weekly.js
-```
-
-全量重建：
-
-```bash
-node scripts/convert-xlsx.js --full
-node scripts/convert-applovin-csv.js --full
-```
-
-**从旧版单文件迁移**（一次性）：
-
-```bash
-node scripts/split-existing.js --platform=fb
-node scripts/split-existing.js --platform=applovin
-```
-
-### 2. 打开看板
-
-```bash
-node serve.js
-```
-
-浏览器访问：http://localhost:8080
-
-## 登录
-
-| 用户 | 密码 | Meta 核心数据 | AppLovin 核心数据 |
-|------|------|---------------|-------------------|
-| admin | enerjoy.life | 全部 | 可见 |
-| alina / barry / angie / dom | enerjoy.life | 本人 + Creative | 不可见（漏斗等公开模块仍可看） |
-
-## 目录结构
-
-```
-ad-dashboard/
-├── index.html
-├── js/
-├── public/
-│   ├── fb/          # manifest.json + 2026-06/01-07.json …
-│   └── applovin/
-└── scripts/
-```
-
-## 部署
-
-GitHub Pages 等静态托管可直接部署仓库根目录；确保 `public/fb/` 与 `public/applovin/` 一并上传。

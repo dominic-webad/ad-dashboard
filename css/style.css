@@ -1321,7 +1321,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   --life-col-purchases: 6%;
   --life-col-cpa: 7%;
   --life-col-ctr: 6%;
-  --life-col-cpm: 6%;
+  --life-col-tag: 10%;
   --life-col-usage: 6%;
   --life-col-ramp: 7%;
   --life-col-phase: 6%;
@@ -1455,11 +1455,93 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .lifecycle-numeric-input {
-  width: 88px;
+  width: 72px;
   height: var(--life-control-h);
   padding: 0 8px;
   font-size: 0.875rem;
   box-sizing: border-box;
+}
+
+.lifecycle-tag-filter {
+  position: relative;
+}
+
+.lifecycle-tag-combobox {
+  position: relative;
+}
+
+.lifecycle-tag-search-input {
+  width: 148px;
+  height: var(--life-control-h);
+  padding: 0 8px;
+  font-size: 0.875rem;
+  box-sizing: border-box;
+}
+
+.lifecycle-tag-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  min-width: 100%;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--card-bg, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.lifecycle-tag-dropdown li {
+  padding: 6px 10px;
+  font-size: 0.8125rem;
+  color: var(--text, #f1f5f9);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.lifecycle-tag-dropdown li:hover {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.lifecycle-tag-cell {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  white-space: normal !important;
+}
+
+.lifecycle-tag-input {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px;
+  font-size: 0.8125rem;
+  color: var(--text, #f1f5f9);
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border, #334155);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.lifecycle-tag-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.lifecycle-tag-save-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.6875rem;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.2;
+}
+
+.lifecycle-tag-save-hint.error {
+  color: #f87171;
+  cursor: pointer;
 }
 
 .lifecycle-panel .lifecycle-table {
@@ -1505,10 +1587,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .lifecycle-panel .lifecycle-table th:nth-child(7),
 .lifecycle-panel .lifecycle-table td:nth-child(7) {
-  width: var(--life-col-cpm);
+  width: var(--life-col-tag);
   padding-left: 6px;
   padding-right: 6px;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .lifecycle-panel .lifecycle-table th:nth-child(8),

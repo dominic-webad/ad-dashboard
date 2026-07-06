@@ -48,6 +48,15 @@
       var compareMetric = ref('spend');
       var topN = ref(15);
       var lifecycleSearch = ref('');
+      var lifecycleTagSearch = ref('');
+      var tagDropdownOpen = ref(false);
+      var creativeTags = ref({});
+      var tagDraft = ref({});
+      var tagSaveState = ref({});
+      var tagsWritable = ref(false);
+      var tagSaveTimers = {};
+      var tagsUnsubscribe = null;
+      var tagsPlatform = '';
       var lifecyclePhase = ref('');
       var lifecycleNumericFilters = ref({
         spendMin: '', spendMax: '',
@@ -783,6 +792,15 @@
           if (!U.matchesMinMaxFilter(i.usageCount, nf.usageCountMin, nf.usageCountMax)) return false;
           return true;
         });
+        var tagQuery = U.normalizeCreativeSearchTerm(lifecycleTagSearch.value);
+        if (tagQuery) {
+          items = items.filter(function (i) {
+            var tag = tagDraft.value[i.creative] !== undefined
+              ? tagDraft.value[i.creative]
+              : (creativeTags.value[i.creative] || '');
+            return U.creativeMatchesSearchTerm(tag, tagQuery);
+          });
+        }
         var key = lifecycleSortKey.value;
         var dir = lifecycleSortDir.value === 'asc' ? 1 : -1;
         var phaseOrder = { test: 1, growth: 2, scale: 3, decline: 4 };
@@ -798,6 +816,11 @@
             av = phaseOrder[a.phase] || 0;
             bv = phaseOrder[b.phase] || 0;
             return dir * (av - bv);
+          }
+          if (key === 'tag') {
+            av = getTagDisplay(a.creative) || '';
+            bv = getTagDisplay(b.creative) || '';
+            return dir * String(av).localeCompare(String(bv), 'zh-CN');
           }
           av = a[key] || 0;
           bv = b[key] || 0;
@@ -815,6 +838,131 @@
         });
         return stats;
       });
+
+      var allTagSuggestions = computed(function () {
+        if (!window.AdTagsApi) return [];
+        var merged = Object.assign({}, creativeTags.value);
+        Object.keys(tagDraft.value).forEach(function (c) {
+          merged[c] = tagDraft.value[c];
+        });
+        return window.AdTagsApi.collectTagSuggestions(merged);
+      });
+
+      var filteredTagSuggestions = computed(function () {
+        var q = U.normalizeCreativeSearchTerm(lifecycleTagSearch.value);
+        var list = allTagSuggestions.value;
+        if (!q) return list.slice(0, 20);
+        return list.filter(function (t) {
+          return U.normalizeCreativeSearchTerm(t).indexOf(q) >= 0;
+        }).slice(0, 20);
+      });
+
+      function mergeRemoteTags(remoteTags) {
+        var next = Object.assign({}, creativeTags.value);
+        Object.keys(remoteTags || {}).forEach(function (c) {
+          if (tagDraft.value[c] === undefined) next[c] = remoteTags[c];
+        });
+        Object.keys(next).forEach(function (c) {
+          if (!(c in (remoteTags || {})) && tagDraft.value[c] === undefined) delete next[c];
+        });
+        creativeTags.value = next;
+      }
+
+      function teardownTags() {
+        if (tagsUnsubscribe) {
+          tagsUnsubscribe();
+          tagsUnsubscribe = null;
+        }
+        if (window.AdTagsApi && tagsPlatform) window.AdTagsApi.stopPolling(tagsPlatform);
+      }
+
+      function initTagsForPlatform(platformId) {
+        if (!window.AdTagsApi) {
+          tagsWritable.value = false;
+          return;
+        }
+        if (tagsPlatform && tagsPlatform !== platformId) teardownTags();
+        tagsPlatform = platformId;
+        tagsWritable.value = window.AdTagsApi.isWritable();
+        mergeRemoteTags(window.AdTagsApi.getCachedTags(platformId));
+        tagsUnsubscribe = window.AdTagsApi.subscribe(platformId, function (remoteTags) {
+          mergeRemoteTags(remoteTags);
+        });
+        window.AdTagsApi.loadTags(platformId).catch(function (err) {
+          console.warn('标签加载失败', err);
+        });
+        window.AdTagsApi.startPolling(platformId);
+      }
+
+      function getTagDisplay(creative) {
+        if (tagDraft.value[creative] !== undefined) return tagDraft.value[creative];
+        return creativeTags.value[creative] || '';
+      }
+
+      function onTagInput(creative, evt) {
+        var val = evt.target.value;
+        var nextDraft = Object.assign({}, tagDraft.value);
+        nextDraft[creative] = val;
+        tagDraft.value = nextDraft;
+        tagSaveState.value = Object.assign({}, tagSaveState.value, { [creative]: 'saving' });
+        scheduleTagSave(creative);
+      }
+
+      function scheduleTagSave(creative) {
+        if (tagSaveTimers[creative]) clearTimeout(tagSaveTimers[creative]);
+        tagSaveTimers[creative] = setTimeout(function () {
+          delete tagSaveTimers[creative];
+          flushTagSave(creative);
+        }, 600);
+      }
+
+      function flushTagSave(creative) {
+        if (!window.AdTagsApi || !window.AdTagsApi.isWritable()) return;
+        var text = tagDraft.value[creative] != null ? tagDraft.value[creative] : '';
+        window.AdTagsApi.saveTag(platform.value, creative, text)
+          .then(function () {
+            var nextTags = Object.assign({}, creativeTags.value);
+            if (text.trim()) nextTags[creative] = text;
+            else delete nextTags[creative];
+            creativeTags.value = nextTags;
+            var nextDraft = Object.assign({}, tagDraft.value);
+            delete nextDraft[creative];
+            tagDraft.value = nextDraft;
+            tagSaveState.value = Object.assign({}, tagSaveState.value, { [creative]: 'saved' });
+            setTimeout(function () {
+              if (tagSaveState.value[creative] === 'saved') {
+                var st = Object.assign({}, tagSaveState.value);
+                delete st[creative];
+                tagSaveState.value = st;
+              }
+            }, 2000);
+          })
+          .catch(function () {
+            tagSaveState.value = Object.assign({}, tagSaveState.value, { [creative]: 'error' });
+          });
+      }
+
+      function retryTagSave(creative) {
+        tagSaveState.value = Object.assign({}, tagSaveState.value, { [creative]: 'saving' });
+        flushTagSave(creative);
+      }
+
+      function tagSaveHint(creative) {
+        var s = tagSaveState.value[creative];
+        if (s === 'saving') return '保存中…';
+        if (s === 'saved') return '已保存';
+        if (s === 'error') return '保存失败，点击重试';
+        return '';
+      }
+
+      function selectTagSuggestion(tag) {
+        lifecycleTagSearch.value = tag;
+        tagDropdownOpen.value = false;
+      }
+
+      function openTagDropdown() {
+        tagDropdownOpen.value = true;
+      }
 
       var compareBundle = computed(function () {
         if (!store.value || !store.value.queryBundle) return null;
@@ -1608,6 +1756,7 @@
         accountSearch.value = '';
         countrySearch.value = '';
         lifecycleSearch.value = '';
+        lifecycleTagSearch.value = '';
         lifecyclePhase.value = '';
         lifecycleNumericFilters.value = {
           spendMin: '', spendMax: '',
@@ -2050,6 +2199,7 @@
         if (id === platform.value) return;
         snapshotPlatformUi(platform.value);
         platform.value = id;
+        initTagsForPlatform(id);
 
         if (platformStoreCache.value[id] && manifestCache.value[id]) {
           restorePlatformUi(id);
@@ -2078,6 +2228,7 @@
         loadData()
           .then(function () { return nextTick(); })
           .then(function () {
+            initTagsForPlatform(platform.value);
             initCharts();
             window.addEventListener('resize', function () {
               if (trendChart) trendChart.resize();
@@ -2089,6 +2240,7 @@
             document.addEventListener('click', function () {
               accountDropdownOpen.value = false;
               countryDropdownOpen.value = false;
+              tagDropdownOpen.value = false;
             });
             setupColumnSelection();
             prefetchEcharts();
@@ -2188,6 +2340,17 @@
         compareMetric: compareMetric,
         topN: topN,
         lifecycleSearch: lifecycleSearch,
+        lifecycleTagSearch: lifecycleTagSearch,
+        tagDropdownOpen: tagDropdownOpen,
+        allTagSuggestions: allTagSuggestions,
+        filteredTagSuggestions: filteredTagSuggestions,
+        tagsWritable: tagsWritable,
+        getTagDisplay: getTagDisplay,
+        onTagInput: onTagInput,
+        tagSaveHint: tagSaveHint,
+        retryTagSave: retryTagSave,
+        selectTagSuggestion: selectTagSuggestion,
+        openTagDropdown: openTagDropdown,
         lifecyclePhase: lifecyclePhase,
         lifecycleNumericFilters: lifecycleNumericFilters,
         lifecycleSortKey: lifecycleSortKey,

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>投放效果分析看板</title>
   <link rel="preload" href="./public/fb/manifest.json" as="fetch" crossorigin />
-  <link rel="stylesheet" href="./css/style.css?v=20260703-3" />
+  <link rel="stylesheet" href="./css/style.css?v=20260706-2" />
 </head>
 <body>
   <div id="app">
@@ -708,6 +708,29 @@
                     placeholder="≤"
                   />
                 </label>
+                <label class="lifecycle-numeric-filter lifecycle-tag-filter">
+                  <span>标签</span>
+                  <div class="lifecycle-tag-combobox" @click.stop>
+                    <input
+                      type="text"
+                      class="select-sm lifecycle-tag-search-input"
+                      v-model="lifecycleTagSearch"
+                      placeholder="筛选标签"
+                      @focus="openTagDropdown"
+                      @input="openTagDropdown"
+                    />
+                    <ul
+                      v-if="tagDropdownOpen && filteredTagSuggestions.length"
+                      class="lifecycle-tag-dropdown"
+                    >
+                      <li
+                        v-for="t in filteredTagSuggestions"
+                        :key="t"
+                        @mousedown.prevent="selectTagSuggestion(t)"
+                      >{{ t }}</li>
+                    </ul>
+                  </div>
+                </label>
               </div>
             </div>
             <div class="lifecycle-controls-right">
@@ -757,7 +780,7 @@
                   <th class="sortable" @click="sortLifecycleColumn('purchases', $event)">转化 {{ lifecycleSortIcon('purchases') }}</th>
                   <th class="sortable" @click="sortLifecycleColumn('cpa', $event)">CPA {{ lifecycleSortIcon('cpa') }}</th>
                   <th class="sortable" @click="sortLifecycleColumn('ctr', $event)">CTR {{ lifecycleSortIcon('ctr') }}</th>
-                  <th class="sortable" @click="sortLifecycleColumn('cpm', $event)">CPM {{ lifecycleSortIcon('cpm') }}</th>
+                  <th class="sortable" @click="sortLifecycleColumn('tag', $event)">标签 {{ lifecycleSortIcon('tag') }}</th>
                   <th class="sortable" @click="sortLifecycleColumn('usageCount', $event)">使用次数 {{ lifecycleSortIcon('usageCount') }}</th>
                   <th class="sortable" @click="sortLifecycleColumn('rampDays', $event)">起量时间 {{ lifecycleSortIcon('rampDays') }}</th>
                   <th class="sortable" @click="sortLifecycleColumn('phase', $event)">生命周期 {{ lifecycleSortIcon('phase') }}</th>
@@ -775,7 +798,22 @@
                   <td>{{ formatNumber(item.purchases, 0) }}</td>
                   <td>{{ item.purchases > 0 ? formatCurrency(item.cpa) : '—' }}</td>
                   <td>{{ formatPercent(item.ctr) }}</td>
-                  <td>{{ formatCurrency(item.cpm) }}</td>
+                  <td class="lifecycle-tag-cell">
+                    <input
+                      type="text"
+                      class="lifecycle-tag-input"
+                      :value="getTagDisplay(item.creative)"
+                      @input="onTagInput(item.creative, $event)"
+                      :disabled="!tagsWritable"
+                      :placeholder="tagsWritable ? '' : '只读'"
+                    />
+                    <span
+                      v-if="tagSaveHint(item.creative)"
+                      class="lifecycle-tag-save-hint"
+                      :class="{ error: tagSaveState[item.creative] === 'error' }"
+                      @click="tagSaveState[item.creative] === 'error' && retryTagSave(item.creative)"
+                    >{{ tagSaveHint(item.creative) }}</span>
+                  </td>
                   <td>{{ formatNumber(item.usageCount, 0) }}</td>
                   <td>{{ item.rampDays > 0 ? item.rampDays + ' 天' : '—' }}</td>
                   <td><span class="phase-tag" :class="'tag-' + item.phase">{{ item.phaseLabel }}</span></td>
@@ -878,6 +916,17 @@
         });
       }
 
+      function loadScriptOptional(src) {
+        return new Promise(function (resolve) {
+          var s = document.createElement('script');
+          s.src = src;
+          s.async = false;
+          s.onload = function () { resolve(); };
+          s.onerror = function () { resolve(); };
+          document.head.appendChild(s);
+        });
+      }
+
       function loadFirst(urls, label) {
         function tryAt(index) {
           if (index >= urls.length) {
@@ -900,6 +949,7 @@
         './js/auth.js?v=' + BUILD,
       ];
       var sequentialLocalScripts = [
+        './js/tags-api.js?v=' + BUILD,
         './js/data-store.js?v=' + BUILD,
         './js/app.js?v=' + BUILD,
       ];
@@ -907,6 +957,9 @@
       loadFirst(vueUrls, 'Vue')
         .then(function () {
           return Promise.all(parallelLocalScripts.map(loadScript));
+        })
+        .then(function () {
+          return loadScriptOptional('./js/tags-config.js?v=' + BUILD);
         })
         .then(function () {
           return sequentialLocalScripts.reduce(function (chain, src) {

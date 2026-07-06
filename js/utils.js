@@ -734,6 +734,7 @@
     findRisingCreatives: findRisingCreatives,
     parseOptimizerFromAccount: parseOptimizerFromAccount,
     parseCreativeSearchTerms: parseCreativeSearchTerms,
+    normalizeCreativeSearchTerm: normalizeCreativeSearchTerm,
     creativeMatchesSearchTerm: creativeMatchesSearchTerm,
     parseNumericFilter: parseNumericFilter,
     matchesNumericFilter: matchesNumericFilter,
