@@ -190,18 +190,51 @@
       }
 
       function getManifestUrl(platformId) {
-        return './public/' + platformId + '/manifest.json';
+        return './public/' + platformId + '/manifest.json?t=' + Date.now();
       }
 
-      function getDataUrl(platformId, monthId) {
+      function flattenManifestParts(manifest) {
+        if (!manifest || !manifest.months) return [];
+        var parts = [];
+        manifest.months.forEach(function (m) {
+          if (m.parts && m.parts.length) {
+            m.parts.forEach(function (p) {
+              parts.push({
+                id: p.id || String(p.file || '').replace(/\.json$/, ''),
+                monthId: m.id,
+                file: p.file,
+                dateRange: p.dateRange || {},
+              });
+            });
+            return;
+          }
+          if (m.file) {
+            parts.push({
+              id: m.id,
+              monthId: m.id,
+              file: m.file,
+              dateRange: m.dateRange || {},
+            });
+            return;
+          }
+          parts.push({
+            id: m.id,
+            monthId: m.id,
+            file: m.id + '.json',
+            dateRange: m.dateRange || {},
+          });
+        });
+        return parts;
+      }
+
+      function getDataUrl(platformId, partId) {
         var manifest = manifestCache.value[platformId];
-        var file = monthId + '.json';
-        if (manifest && manifest.months) {
-          var entry = manifest.months.find(function (m) { return m.id === monthId; });
-          if (entry && entry.file) file = entry.file;
-        }
+        var file = partId + '.json';
+        var parts = flattenManifestParts(manifest);
+        var entry = parts.find(function (p) { return p.id === partId; });
+        if (entry && entry.file) file = entry.file;
         try {
-          var version = localStorage.getItem('ad_dashboard_' + platformId + '_' + monthId);
+          var version = localStorage.getItem('ad_dashboard_' + platformId + '_' + partId);
           if (version) return './public/' + platformId + '/' + file + '?v=' + encodeURIComponent(version);
         } catch (e) { /* ignore */ }
         return './public/' + platformId + '/' + file;
@@ -212,8 +245,8 @@
           var generatedAt = manifest && manifest.generatedAt;
           if (!generatedAt) return;
           localStorage.setItem('ad_dashboard_' + platformId + '_version', generatedAt);
-          (manifest.months || []).forEach(function (m) {
-            localStorage.setItem('ad_dashboard_' + platformId + '_' + m.id, generatedAt);
+          flattenManifestParts(manifest).forEach(function (p) {
+            localStorage.setItem('ad_dashboard_' + platformId + '_' + p.id, generatedAt);
           });
         } catch (e) { /* ignore */ }
       }
@@ -330,25 +363,37 @@
         return ids[ids.length - 1];
       }
 
-      function getInitialMonthIds(manifest) {
+      function getInitialPartIds(manifest) {
         var latest = getLatestMonthId(manifest);
-        var available = new Set((manifest.months || []).map(function (m) { return m.id; }));
-        var ids = [];
+        var availableMonths = new Set((manifest.months || []).map(function (m) { return m.id; }));
+        var monthIds = [];
         var prev = prevMonthId(latest);
-        if (available.has(prev)) ids.push(prev);
-        if (available.has(latest)) ids.push(latest);
-        if (!ids.length && latest) ids.push(latest);
-        return ids;
+        if (availableMonths.has(prev)) monthIds.push(prev);
+        if (availableMonths.has(latest)) monthIds.push(latest);
+        if (!monthIds.length && latest) monthIds.push(latest);
+        var monthSet = new Set(monthIds);
+        return flattenManifestParts(manifest)
+          .filter(function (p) { return monthSet.has(p.monthId); })
+          .map(function (p) { return p.id; })
+          .sort();
+      }
+
+      function getPartIdsForRange(start, end, manifest) {
+        if (!start || !end || !manifest) return [];
+        return flattenManifestParts(manifest).filter(function (p) {
+          var dr = p.dateRange || {};
+          var min = dr.min || '';
+          var max = dr.max || '';
+          return max >= start && min <= end;
+        }).map(function (p) { return p.id; }).sort();
       }
 
       function getMonthIdsForRange(start, end, manifest) {
-        if (!start || !end || !manifest || !manifest.months) return [];
-        return manifest.months.filter(function (m) {
-          var dr = m.dateRange || {};
-          var min = dr.min || m.id + '-01';
-          var max = dr.max || m.id + '-31';
-          return max >= start && min <= end;
-        }).map(function (m) { return m.id; }).sort();
+        return getPartIdsForRange(start, end, manifest);
+      }
+
+      function getInitialMonthIds(manifest) {
+        return getInitialPartIds(manifest);
       }
 
       function getPlatformMonthCache(platformId) {
@@ -360,9 +405,9 @@
         return platformMonthCache.value[platformId];
       }
 
-      function fetchMonthJson(platformId, monthId) {
-        return fetch(getDataUrl(platformId, monthId)).then(function (res) {
-          if (!res.ok) throw new Error('无法加载 ' + monthId + ' 数据');
+      function fetchMonthJson(platformId, partId) {
+        return fetch(getDataUrl(platformId, partId)).then(function (res) {
+          if (!res.ok) throw new Error('无法加载 ' + partId + ' 数据');
           return res.json();
         });
       }
@@ -402,10 +447,10 @@
         }
       }
 
-      function fetchAndMergeMonths(platformId, monthIds, manifest, resetFiltersFlag) {
+      function fetchAndMergeMonths(platformId, partIds, manifest, resetFiltersFlag) {
         var cache = getPlatformMonthCache(platformId);
-        var availableIds = new Set((manifest.months || []).map(function (m) { return m.id; }));
-        var toFetch = monthIds.filter(function (id) {
+        var availableIds = new Set(flattenManifestParts(manifest).map(function (p) { return p.id; }));
+        var toFetch = partIds.filter(function (id) {
           return availableIds.has(id) && !cache.months[id];
         });
 
@@ -435,12 +480,12 @@
         var idSet = new Set();
         ranges.forEach(function (range) {
           if (range.start && range.end) {
-            getMonthIdsForRange(range.start, range.end, manifest).forEach(function (id) {
+            getPartIdsForRange(range.start, range.end, manifest).forEach(function (id) {
               idSet.add(id);
             });
           }
         });
-        getInitialMonthIds(manifest).forEach(function (id) { idSet.add(id); });
+        getInitialPartIds(manifest).forEach(function (id) { idSet.add(id); });
         return Array.from(idSet).sort();
       }
 
@@ -469,11 +514,11 @@
         return manifestDateRange.value;
       }
 
-      function loadManifest(platformId) {
-        if (manifestCache.value[platformId]) {
+      function loadManifest(platformId, forceRefresh) {
+        if (!forceRefresh && manifestCache.value[platformId]) {
           return Promise.resolve(manifestCache.value[platformId]);
         }
-        return fetch(getManifestUrl(platformId))
+        return fetch(getManifestUrl(platformId), { cache: 'no-store' })
           .then(function (res) {
             if (!res.ok) throw new Error('无法加载 ' + platformId + ' manifest');
             return res.json();
@@ -1976,7 +2021,19 @@
         closeKpiTrendModal();
         loading.value = true;
         error.value = '';
-        return loadData()
+        var nextManifest = Object.assign({}, manifestCache.value);
+        delete nextManifest[platform.value];
+        manifestCache.value = nextManifest;
+        var nextMonthCache = Object.assign({}, platformMonthCache.value);
+        delete nextMonthCache[platform.value];
+        platformMonthCache.value = nextMonthCache;
+        delete mergedKeyByPlatform[platform.value];
+        return loadManifest(platform.value, true)
+          .then(function (manifest) {
+            if (!manifest.months || !manifest.months.length) throw new Error('无可用数据月份');
+            var initialIds = getInitialMonthIds(manifest);
+            return fetchAndMergeMonths(platform.value, initialIds, manifest, true);
+          })
           .then(function () { return nextTick(); })
           .then(function () {
             initCharts();

@@ -1,7 +1,8 @@
 {
   "platform": "fb",
-  "generatedAt": "2026-07-06T01:59:25.485Z",
+  "generatedAt": "2026-07-06T02:32:53.939Z",
   "defaultMonth": "2026-07",
+  "chunkDays": 7,
   "sourceFiles": [
     "Untitled-report_0601.xlsx",
     "Untitled-report_0602.xlsx",
@@ -40,21 +41,77 @@
   "months": [
     {
       "id": "2026-06",
-      "file": "2026-06.json",
       "dateRange": {
         "min": "2026-06-01",
         "max": "2026-06-30"
       },
-      "totalRecords": 1323496
+      "totalRecords": 1323496,
+      "parts": [
+        {
+          "id": "2026-06/01-07",
+          "file": "2026-06/01-07.json",
+          "dateRange": {
+            "min": "2026-06-01",
+            "max": "2026-06-07"
+          },
+          "totalRecords": 175251
+        },
+        {
+          "id": "2026-06/08-14",
+          "file": "2026-06/08-14.json",
+          "dateRange": {
+            "min": "2026-06-08",
+            "max": "2026-06-14"
+          },
+          "totalRecords": 210999
+        },
+        {
+          "id": "2026-06/15-21",
+          "file": "2026-06/15-21.json",
+          "dateRange": {
+            "min": "2026-06-15",
+            "max": "2026-06-21"
+          },
+          "totalRecords": 370740
+        },
+        {
+          "id": "2026-06/22-28",
+          "file": "2026-06/22-28.json",
+          "dateRange": {
+            "min": "2026-06-22",
+            "max": "2026-06-28"
+          },
+          "totalRecords": 434099
+        },
+        {
+          "id": "2026-06/29-30",
+          "file": "2026-06/29-30.json",
+          "dateRange": {
+            "min": "2026-06-29",
+            "max": "2026-06-30"
+          },
+          "totalRecords": 132407
+        }
+      ]
     },
     {
       "id": "2026-07",
-      "file": "2026-07.json",
       "dateRange": {
         "min": "2026-07-01",
         "max": "2026-07-05"
       },
-      "totalRecords": 328625
+      "totalRecords": 328625,
+      "parts": [
+        {
+          "id": "2026-07/01-07",
+          "file": "2026-07/01-07.json",
+          "dateRange": {
+            "min": "2026-07-01",
+            "max": "2026-07-07"
+          },
+          "totalRecords": 328625
+        }
+      ]
     }
   ]
 }

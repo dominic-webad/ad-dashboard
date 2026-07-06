@@ -14,15 +14,15 @@ Meta 与 AppLovin 双平台统一看板，单一入口 `index.html`，顶部 Tab
 
 ### 1. 每日更新数据
 
-每日将新报表直接放入仓库根目录 `/Users/dominic/Documents/GitHub/ad-dashboard` 后运行转换脚本：
+每日将新报表直接放入仓库根目录（例如 `/Users/dominic/Downloads/GitHub/ad-dashboard`）后运行转换脚本：
 
 | 平台 | 放入目录 | 文件名格式 |
 |------|----------|-----------|
-| Meta | `/Users/dominic/Documents/GitHub/ad-dashboard` | `Untitled-report_MMDD.xlsx` |
-| AppLovin | `/Users/dominic/Documents/GitHub/ad-dashboard` | `report_YYYY-MM-DD_*.csv` |
+| Meta | 仓库根目录 | `Untitled-report_MMDD.xlsx` |
+| AppLovin | 仓库根目录 | `report_YYYY-MM-DD_*.csv` |
 
 ```bash
-cd /Users/dominic/Documents/GitHub/ad-dashboard
+cd /Users/dominic/Downloads/GitHub/ad-dashboard
 
 # Meta 增量
 node scripts/convert-xlsx.js
@@ -31,7 +31,13 @@ node scripts/convert-xlsx.js
 node scripts/convert-applovin-csv.js
 ```
 
-脚本会更新 `public/{platform}/manifest.json` 与按月 `{YYYY-MM}.json`。已收录文件名记录在 manifest 的 `sourceFiles`，处理完源文件可从仓库根目录移走。
+脚本会更新 `public/{platform}/manifest.json` 与按 **7 天一段** 的 `{YYYY-MM}/{DD-DD}.json`。已收录文件名记录在 manifest 的 `sourceFiles`，处理完源文件可从仓库根目录移走。
+
+若已有按月整文件、需改为按周分段（不重新跑 xlsx/csv 转换）：
+
+```bash
+node scripts/resplit-weekly.js
+```
 
 全量重建：
 
@@ -69,7 +75,7 @@ ad-dashboard/
 ├── index.html
 ├── js/
 ├── public/
-│   ├── fb/          # manifest.json + 2026-06.json …
+│   ├── fb/          # manifest.json + 2026-06/01-07.json …
 │   └── applovin/
 └── scripts/
 ```
