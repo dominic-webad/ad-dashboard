@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>投放效果分析看板</title>
   <link rel="preload" href="./public/fb/manifest.json" as="fetch" crossorigin />
-  <link rel="stylesheet" href="./css/style.css?v=20260706-2" />
+  <link rel="stylesheet" href="./css/style.css?v=20260706-3" />
 </head>
 <body>
   <div id="app">
@@ -780,7 +780,7 @@
                   <th class="sortable" @click="sortLifecycleColumn('purchases', $event)">转化 {{ lifecycleSortIcon('purchases') }}</th>
                   <th class="sortable" @click="sortLifecycleColumn('cpa', $event)">CPA {{ lifecycleSortIcon('cpa') }}</th>
                   <th class="sortable" @click="sortLifecycleColumn('ctr', $event)">CTR {{ lifecycleSortIcon('ctr') }}</th>
-                  <th class="sortable" @click="sortLifecycleColumn('tag', $event)">标签 {{ lifecycleSortIcon('tag') }}</th>
+                  <th class="lifecycle-tag-header">标签</th>
                   <th class="sortable" @click="sortLifecycleColumn('usageCount', $event)">使用次数 {{ lifecycleSortIcon('usageCount') }}</th>
                   <th class="sortable" @click="sortLifecycleColumn('rampDays', $event)">起量时间 {{ lifecycleSortIcon('rampDays') }}</th>
                   <th class="sortable" @click="sortLifecycleColumn('phase', $event)">生命周期 {{ lifecycleSortIcon('phase') }}</th>
@@ -891,7 +891,7 @@
 
   <script>
     (function () {
-      var BUILD = '20260706-2';
+      var BUILD = '20260706-3';
       var appEl = document.getElementById('app');
 
       function showBootError(message) {

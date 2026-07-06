@@ -1321,7 +1321,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   --life-col-purchases: 6%;
   --life-col-cpa: 7%;
   --life-col-ctr: 6%;
-  --life-col-tag: 10%;
+  --life-col-tag: 6.67%;
   --life-col-usage: 6%;
   --life-col-ramp: 7%;
   --life-col-phase: 6%;
@@ -1436,18 +1436,21 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .lifecycle-numeric-filters {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 10px 16px;
+  gap: 6px 10px;
   margin-bottom: 8px;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .lifecycle-numeric-filter {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.8125rem;
+  gap: 4px;
+  font-size: 0.75rem;
   color: var(--text-muted, #94a3b8);
+  flex-shrink: 0;
 }
 
 .lifecycle-numeric-filter span {
@@ -1455,10 +1458,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .lifecycle-numeric-input {
-  width: 72px;
+  width: 56px;
   height: var(--life-control-h);
-  padding: 0 8px;
-  font-size: 0.875rem;
+  padding: 0 4px;
+  font-size: 0.8125rem;
   box-sizing: border-box;
 }
 
@@ -1471,10 +1474,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .lifecycle-tag-search-input {
-  width: 148px;
+  width: 100px;
   height: var(--life-control-h);
-  padding: 0 8px;
-  font-size: 0.875rem;
+  padding: 0 6px;
+  font-size: 0.8125rem;
   box-sizing: border-box;
 }
 
@@ -1516,9 +1519,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .lifecycle-tag-input {
   width: 100%;
   min-width: 0;
-  height: 28px;
-  padding: 0 6px;
-  font-size: 0.8125rem;
+  height: 26px;
+  padding: 0 4px;
+  font-size: 0.75rem;
   color: var(--text, #f1f5f9);
   background: rgba(15, 23, 42, 0.5);
   border: 1px solid var(--border, #334155);
@@ -1588,9 +1591,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .lifecycle-panel .lifecycle-table th:nth-child(7),
 .lifecycle-panel .lifecycle-table td:nth-child(7) {
   width: var(--life-col-tag);
-  padding-left: 6px;
-  padding-right: 6px;
+  padding-left: 4px;
+  padding-right: 4px;
   white-space: normal;
+}
+
+.lifecycle-panel .lifecycle-table th.lifecycle-tag-header {
+  text-align: center;
 }
 
 .lifecycle-panel .lifecycle-table th:nth-child(8),

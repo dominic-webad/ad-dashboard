@@ -153,6 +153,14 @@
     }
   }
 
+  function accumulateCtrStats(target, row) {
+    var ctr = row[8] || 0;
+    if (ctr > 0) {
+      target.ctrSum += ctr;
+      target.ctrCount += 1;
+    }
+  }
+
   function filterDayMapEntries(dayMap, f) {
     if (!dayMap) return [];
     var entries = Array.from(dayMap.entries());
@@ -282,7 +290,7 @@
       var result = Object.assign({}, g, {
         roas: g.spend > 0 ? g.conversionValue / g.spend : 0,
         cpa: g.purchases > 0 ? g.spend / g.purchases : 0,
-        ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0,
+        ctr: g.ctrCount > 0 ? g.ctrSum / g.ctrCount : 0,
         cpc: g.clicks > 0 ? g.spend / g.clicks : 0,
         cpm: g.impressions > 0 ? (g.spend / g.impressions) * 1000 : g.cpmCount > 0 ? g.cpmSum / g.cpmCount : 0,
         daysLive: U.daysBetween(g.launchDate, latestDay || g.launchDate),
@@ -388,7 +396,7 @@
         creativeMap.set(creative, {
           creative: creative,
           launchDate: store.getLaunchDate(creative),
-          spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, cpmSum: 0, cpmCount: 0,
+          spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, cpmSum: 0, cpmCount: 0, ctrSum: 0, ctrCount: 0,
           usageCount: 0,
         });
       }
@@ -400,6 +408,7 @@
       cg.impressions += rowImpressions(row);
       trackCreativeUsage(cg, row);
       accumulateCpmStats(cg, row);
+      accumulateCtrStats(cg, row);
 
       if (!creativeDayMap.has(creative)) creativeDayMap.set(creative, new Map());
       var cDay = creativeDayMap.get(creative);
@@ -600,7 +609,7 @@
         creativeMap.set(creative, {
           creative: creative,
           launchDate: store.getLaunchDate(creative),
-          spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, cpmSum: 0, cpmCount: 0,
+          spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, cpmSum: 0, cpmCount: 0, ctrSum: 0, ctrCount: 0,
           usageCount: 0,
         });
       }
@@ -612,6 +621,7 @@
       cg.impressions += rowImpressions(row);
       trackCreativeUsage(cg, row);
       accumulateCpmStats(cg, row);
+      accumulateCtrStats(cg, row);
 
       if (!creativeDayMap.has(creative)) creativeDayMap.set(creative, new Map());
       var cDay = creativeDayMap.get(creative);
@@ -833,7 +843,7 @@
         map.set(creative, {
           creative: creative,
           launchDate: store.getLaunchDate(creative),
-          spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, cpmSum: 0, cpmCount: 0,
+          spend: 0, purchases: 0, conversionValue: 0, clicks: 0, impressions: 0, cpmSum: 0, cpmCount: 0, ctrSum: 0, ctrCount: 0,
         });
       }
       var g = map.get(creative);
@@ -843,12 +853,13 @@
       g.clicks += row[7];
       g.impressions += rowImpressions(row);
       accumulateCpmStats(g, row);
+      accumulateCtrStats(g, row);
     });
     return Array.from(map.values()).map(function (g) {
       return Object.assign({}, g, {
         roas: g.spend > 0 ? g.conversionValue / g.spend : 0,
         cpa: g.purchases > 0 ? g.spend / g.purchases : 0,
-        ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0,
+        ctr: g.ctrCount > 0 ? g.ctrSum / g.ctrCount : 0,
         cpc: g.clicks > 0 ? g.spend / g.clicks : 0,
         cpm: g.impressions > 0 ? (g.spend / g.impressions) * 1000 : g.cpmCount > 0 ? g.cpmSum / g.cpmCount : 0,
         daysLive: U.daysBetween(g.launchDate, latestDay || g.launchDate),
