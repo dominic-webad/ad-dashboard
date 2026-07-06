@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>投放效果分析看板</title>
   <link rel="preload" href="./public/fb/manifest.json" as="fetch" crossorigin />
-  <link rel="stylesheet" href="./css/style.css?v=20260706-4" />
+  <link rel="stylesheet" href="./css/style.css?v=20260706-5" />
 </head>
 <body>
   <div id="app">
@@ -713,7 +713,7 @@
                   <div class="lifecycle-tag-combobox" @click.stop>
                     <input
                       type="text"
-                      class="select-sm lifecycle-tag-search-input"
+                      class="select-sm lifecycle-numeric-input lifecycle-tag-search-input"
                       v-model="lifecycleTagSearch"
                       placeholder="筛选标签"
                       @focus="openTagDropdown"
@@ -810,8 +810,8 @@
                     <span
                       v-if="tagSaveHint(item.creative)"
                       class="lifecycle-tag-save-hint"
-                      :class="{ error: tagSaveState[item.creative] === 'error' }"
-                      @click="tagSaveState[item.creative] === 'error' && retryTagSave(item.creative)"
+                      :class="{ error: isTagSaveError(item.creative) }"
+                      @click="isTagSaveError(item.creative) && retryTagSave(item.creative)"
                     >{{ tagSaveHint(item.creative) }}</span>
                   </td>
                   <td>{{ formatNumber(item.usageCount, 0) }}</td>
@@ -891,7 +891,7 @@
 
   <script>
     (function () {
-      var BUILD = '20260706-4';
+      var BUILD = '20260706-5';
       var appEl = document.getElementById('app');
 
       function showBootError(message) {

@@ -1315,6 +1315,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .lifecycle-panel {
   --life-control-h: 38px;
+  --life-filter-input-w: 40px;
   --life-col-creative: 35%;
   --life-col-spend: 8%;
   --life-col-roas: 7%;
@@ -1457,7 +1458,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .lifecycle-numeric-input {
-  width: 40px;
+  width: var(--life-filter-input-w);
+  min-width: var(--life-filter-input-w);
+  max-width: var(--life-filter-input-w);
   height: var(--life-control-h);
   padding: 0 2px;
   font-size: 0.8125rem;
@@ -1470,14 +1473,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .lifecycle-tag-combobox {
   position: relative;
-}
-
-.lifecycle-tag-search-input {
-  width: 40px;
-  height: var(--life-control-h);
-  padding: 0 2px;
-  font-size: 0.8125rem;
-  box-sizing: border-box;
 }
 
 .lifecycle-tag-dropdown {
@@ -1553,6 +1548,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .lifecycle-panel .lifecycle-table th,
 .lifecycle-panel .lifecycle-table td {
   padding: 9px 10px;
+}
+
+.lifecycle-panel .lifecycle-table thead th:not(:first-child) {
+  text-align: center;
 }
 
 .lifecycle-panel .lifecycle-table th:nth-child(1),

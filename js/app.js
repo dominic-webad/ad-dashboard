@@ -904,7 +904,9 @@
         var nextDraft = Object.assign({}, tagDraft.value);
         nextDraft[creative] = val;
         tagDraft.value = nextDraft;
-        tagSaveState.value = Object.assign({}, tagSaveState.value, { [creative]: 'saving' });
+        var nextSaveState = Object.assign({}, tagSaveState.value);
+        nextSaveState[creative] = 'saving';
+        tagSaveState.value = nextSaveState;
         scheduleTagSave(creative);
       }
 
@@ -928,7 +930,11 @@
             var nextDraft = Object.assign({}, tagDraft.value);
             delete nextDraft[creative];
             tagDraft.value = nextDraft;
-            tagSaveState.value = Object.assign({}, tagSaveState.value, { [creative]: 'saved' });
+            tagSaveState.value = (function () {
+              var o = Object.assign({}, tagSaveState.value);
+              o[creative] = 'saved';
+              return o;
+            })();
             setTimeout(function () {
               if (tagSaveState.value[creative] === 'saved') {
                 var st = Object.assign({}, tagSaveState.value);
@@ -938,12 +944,16 @@
             }, 2000);
           })
           .catch(function () {
-            tagSaveState.value = Object.assign({}, tagSaveState.value, { [creative]: 'error' });
+            var errState = Object.assign({}, tagSaveState.value);
+            errState[creative] = 'error';
+            tagSaveState.value = errState;
           });
       }
 
       function retryTagSave(creative) {
-        tagSaveState.value = Object.assign({}, tagSaveState.value, { [creative]: 'saving' });
+        var nextSaveState = Object.assign({}, tagSaveState.value);
+        nextSaveState[creative] = 'saving';
+        tagSaveState.value = nextSaveState;
         flushTagSave(creative);
       }
 
@@ -953,6 +963,10 @@
         if (s === 'saved') return '已保存';
         if (s === 'error') return '保存失败，点击重试';
         return '';
+      }
+
+      function isTagSaveError(creative) {
+        return tagSaveState.value[creative] === 'error';
       }
 
       function selectTagSuggestion(tag) {
@@ -2348,6 +2362,8 @@
         getTagDisplay: getTagDisplay,
         onTagInput: onTagInput,
         tagSaveHint: tagSaveHint,
+        isTagSaveError: isTagSaveError,
+        tagSaveState: tagSaveState,
         retryTagSave: retryTagSave,
         selectTagSuggestion: selectTagSuggestion,
         openTagDropdown: openTagDropdown,
