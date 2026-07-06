@@ -49,7 +49,6 @@
       var topN = ref(15);
       var lifecycleSearch = ref('');
       var lifecycleTagSearch = ref('');
-      var tagDropdownOpen = ref(false);
       var creativeTags = ref({});
       var tagDraft = ref({});
       var tagSaveState = ref({});
@@ -57,6 +56,12 @@
       var tagSaveTimers = {};
       var tagsUnsubscribe = null;
       var tagsPlatform = '';
+
+      var tagPresets = computed(function () {
+        var cfg = window.AdTagsConfig;
+        if (cfg && cfg.presets && cfg.presets.length) return cfg.presets;
+        return ['已改多语言'];
+      });
       var lifecyclePhase = ref('');
       var lifecycleNumericFilters = ref({
         spendMin: '', spendMax: '',
@@ -792,13 +797,10 @@
           if (!U.matchesMinMaxFilter(i.usageCount, nf.usageCountMin, nf.usageCountMax)) return false;
           return true;
         });
-        var tagQuery = U.normalizeCreativeSearchTerm(lifecycleTagSearch.value);
+        var tagQuery = lifecycleTagSearch.value;
         if (tagQuery) {
           items = items.filter(function (i) {
-            var tag = tagDraft.value[i.creative] !== undefined
-              ? tagDraft.value[i.creative]
-              : (creativeTags.value[i.creative] || '');
-            return U.creativeMatchesSearchTerm(tag, tagQuery);
+            return hasTagToken(i.creative, tagQuery);
           });
         }
         var key = lifecycleSortKey.value;
@@ -837,24 +839,6 @@
           if (i.spend > 0) stats.activeInPeriod += 1;
         });
         return stats;
-      });
-
-      var allTagSuggestions = computed(function () {
-        if (!window.AdTagsApi) return [];
-        var merged = Object.assign({}, creativeTags.value);
-        Object.keys(tagDraft.value).forEach(function (c) {
-          merged[c] = tagDraft.value[c];
-        });
-        return window.AdTagsApi.collectTagSuggestions(merged);
-      });
-
-      var filteredTagSuggestions = computed(function () {
-        var q = U.normalizeCreativeSearchTerm(lifecycleTagSearch.value);
-        var list = allTagSuggestions.value;
-        if (!q) return list.slice(0, 20);
-        return list.filter(function (t) {
-          return U.normalizeCreativeSearchTerm(t).indexOf(q) >= 0;
-        }).slice(0, 20);
       });
 
       function mergeRemoteTags(remoteTags) {
@@ -899,15 +883,50 @@
         return creativeTags.value[creative] || '';
       }
 
-      function onTagInput(creative, evt) {
-        var val = evt.target.value;
+      function getTagTokens(creative) {
+        var text = getTagDisplay(creative);
+        if (!text) return [];
+        if (window.AdTagsApi && window.AdTagsApi.splitTagTokens) {
+          return window.AdTagsApi.splitTagTokens(text);
+        }
+        return String(text).split(/[,，、\s]+/).map(function (t) { return t.trim(); }).filter(Boolean);
+      }
+
+      function hasTagToken(creative, token) {
+        var norm = U.normalizeCreativeSearchTerm(token);
+        return getTagTokens(creative).some(function (t) {
+          return U.normalizeCreativeSearchTerm(t) === norm;
+        });
+      }
+
+      function setCreativeTagText(creative, text) {
         var nextDraft = Object.assign({}, tagDraft.value);
-        nextDraft[creative] = val;
+        nextDraft[creative] = text;
         tagDraft.value = nextDraft;
         var nextSaveState = Object.assign({}, tagSaveState.value);
         nextSaveState[creative] = 'saving';
         tagSaveState.value = nextSaveState;
         scheduleTagSave(creative);
+      }
+
+      function toggleCreativeTag(creative, preset) {
+        if (!tagsWritable.value) return;
+        var tokens = getTagTokens(creative).slice();
+        var norm = U.normalizeCreativeSearchTerm(preset);
+        var idx = -1;
+        for (var i = 0; i < tokens.length; i++) {
+          if (U.normalizeCreativeSearchTerm(tokens[i]) === norm) {
+            idx = i;
+            break;
+          }
+        }
+        if (idx >= 0) tokens.splice(idx, 1);
+        else tokens.push(preset);
+        setCreativeTagText(creative, tokens.join(','));
+      }
+
+      function selectTagFilter(preset) {
+        lifecycleTagSearch.value = lifecycleTagSearch.value === preset ? '' : preset;
       }
 
       function scheduleTagSave(creative) {
@@ -967,15 +986,6 @@
 
       function isTagSaveError(creative) {
         return tagSaveState.value[creative] === 'error';
-      }
-
-      function selectTagSuggestion(tag) {
-        lifecycleTagSearch.value = tag;
-        tagDropdownOpen.value = false;
-      }
-
-      function openTagDropdown() {
-        tagDropdownOpen.value = true;
       }
 
       var compareBundle = computed(function () {
@@ -2254,7 +2264,6 @@
             document.addEventListener('click', function () {
               accountDropdownOpen.value = false;
               countryDropdownOpen.value = false;
-              tagDropdownOpen.value = false;
             });
             setupColumnSelection();
             prefetchEcharts();
@@ -2355,18 +2364,17 @@
         topN: topN,
         lifecycleSearch: lifecycleSearch,
         lifecycleTagSearch: lifecycleTagSearch,
-        tagDropdownOpen: tagDropdownOpen,
-        allTagSuggestions: allTagSuggestions,
-        filteredTagSuggestions: filteredTagSuggestions,
+        tagPresets: tagPresets,
         tagsWritable: tagsWritable,
         getTagDisplay: getTagDisplay,
-        onTagInput: onTagInput,
+        getTagTokens: getTagTokens,
+        hasTagToken: hasTagToken,
+        toggleCreativeTag: toggleCreativeTag,
+        selectTagFilter: selectTagFilter,
         tagSaveHint: tagSaveHint,
         isTagSaveError: isTagSaveError,
         tagSaveState: tagSaveState,
         retryTagSave: retryTagSave,
-        selectTagSuggestion: selectTagSuggestion,
-        openTagDropdown: openTagDropdown,
         lifecyclePhase: lifecyclePhase,
         lifecycleNumericFilters: lifecycleNumericFilters,
         lifecycleSortKey: lifecycleSortKey,

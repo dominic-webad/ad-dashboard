@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>投放效果分析看板</title>
   <link rel="preload" href="./public/fb/manifest.json" as="fetch" crossorigin />
-  <link rel="stylesheet" href="./css/style.css?v=20260706-5" />
+  <link rel="stylesheet" href="./css/style.css?v=20260706-6" />
 </head>
 <body>
   <div id="app">
@@ -710,25 +710,15 @@
                 </label>
                 <label class="lifecycle-numeric-filter lifecycle-tag-filter">
                   <span>标签</span>
-                  <div class="lifecycle-tag-combobox" @click.stop>
-                    <input
-                      type="text"
-                      class="select-sm lifecycle-numeric-input lifecycle-tag-search-input"
-                      v-model="lifecycleTagSearch"
-                      placeholder="筛选标签"
-                      @focus="openTagDropdown"
-                      @input="openTagDropdown"
-                    />
-                    <ul
-                      v-if="tagDropdownOpen && filteredTagSuggestions.length"
-                      class="lifecycle-tag-dropdown"
-                    >
-                      <li
-                        v-for="t in filteredTagSuggestions"
-                        :key="t"
-                        @mousedown.prevent="selectTagSuggestion(t)"
-                      >{{ t }}</li>
-                    </ul>
+                  <div class="lifecycle-tag-filter-btns">
+                    <button
+                      type="button"
+                      v-for="p in tagPresets"
+                      :key="p"
+                      class="lifecycle-tag-preset-btn"
+                      :class="{ active: lifecycleTagSearch === p }"
+                      @click="selectTagFilter(p)"
+                    >{{ p }}</button>
                   </div>
                 </label>
               </div>
@@ -799,14 +789,17 @@
                   <td>{{ item.purchases > 0 ? formatCurrency(item.cpa) : '—' }}</td>
                   <td>{{ formatPercent(item.ctr) }}</td>
                   <td class="lifecycle-tag-cell">
-                    <input
-                      type="text"
-                      class="lifecycle-tag-input"
-                      :value="getTagDisplay(item.creative)"
-                      @input="onTagInput(item.creative, $event)"
-                      :disabled="!tagsWritable"
-                      :placeholder="tagsWritable ? '' : '只读'"
-                    />
+                    <div class="lifecycle-tag-presets">
+                      <button
+                        type="button"
+                        v-for="p in tagPresets"
+                        :key="p"
+                        class="lifecycle-tag-preset-btn"
+                        :class="{ active: hasTagToken(item.creative, p) }"
+                        :disabled="!tagsWritable"
+                        @click="toggleCreativeTag(item.creative, p)"
+                      >{{ p }}</button>
+                    </div>
                     <span
                       v-if="tagSaveHint(item.creative)"
                       class="lifecycle-tag-save-hint"
@@ -891,7 +884,7 @@
 
   <script>
     (function () {
-      var BUILD = '20260706-5';
+      var BUILD = '20260706-6';
       var appEl = document.getElementById('app');
 
       function showBootError(message) {

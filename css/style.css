@@ -1315,14 +1315,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .lifecycle-panel {
   --life-control-h: 38px;
-  --life-filter-input-w: 40px;
   --life-col-creative: 35%;
   --life-col-spend: 8%;
   --life-col-roas: 7%;
   --life-col-purchases: 6%;
   --life-col-cpa: 7%;
   --life-col-ctr: 6%;
-  --life-col-tag: 6.67%;
+  --life-col-tag: 8%;
   --life-col-usage: 6%;
   --life-col-ramp: 7%;
   --life-col-phase: 6%;
@@ -1436,21 +1435,22 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .lifecycle-numeric-filters {
-  display: flex;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: center;
-  gap: 6px 10px;
+  gap: 8px;
   margin-bottom: 8px;
-  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .lifecycle-numeric-filter {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 4px;
   font-size: 0.75rem;
   color: var(--text-muted, #94a3b8);
-  flex-shrink: 0;
+  min-width: 0;
 }
 
 .lifecycle-numeric-filter span {
@@ -1458,74 +1458,67 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .lifecycle-numeric-input {
-  width: var(--life-filter-input-w);
-  min-width: var(--life-filter-input-w);
-  max-width: var(--life-filter-input-w);
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+  max-width: none;
   height: var(--life-control-h);
-  padding: 0 2px;
+  padding: 0 4px;
   font-size: 0.8125rem;
   box-sizing: border-box;
 }
 
 .lifecycle-tag-filter {
-  position: relative;
-}
-
-.lifecycle-tag-combobox {
-  position: relative;
-}
-
-.lifecycle-tag-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 30;
-  min-width: 100%;
-  max-height: 220px;
-  overflow-y: auto;
-  margin: 0;
-  padding: 4px 0;
-  list-style: none;
-  background: var(--card-bg, #1e293b);
-  border: 1px solid var(--border, #334155);
-  border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-}
-
-.lifecycle-tag-dropdown li {
-  padding: 6px 10px;
-  font-size: 0.8125rem;
-  color: var(--text, #f1f5f9);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.lifecycle-tag-dropdown li:hover {
-  background: rgba(59, 130, 246, 0.15);
-}
-
-.lifecycle-tag-cell {
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
-  white-space: normal !important;
-}
-
-.lifecycle-tag-input {
-  width: 100%;
   min-width: 0;
-  height: 26px;
+}
+
+.lifecycle-tag-filter-btns,
+.lifecycle-tag-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.lifecycle-tag-preset-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--life-control-h);
   padding: 0 4px;
-  font-size: 0.75rem;
-  color: var(--text, #f1f5f9);
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  color: var(--text-muted, #94a3b8);
   background: rgba(15, 23, 42, 0.5);
   border: 1px solid var(--border, #334155);
   border-radius: 4px;
+  cursor: pointer;
   box-sizing: border-box;
+  white-space: normal;
+  text-align: center;
 }
 
-.lifecycle-tag-input:disabled {
-  opacity: 0.6;
+.lifecycle-tag-preset-btn:hover:not(:disabled) {
+  border-color: var(--primary, #3b82f6);
+  color: var(--text, #f1f5f9);
+}
+
+.lifecycle-tag-preset-btn.active {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: var(--primary, #3b82f6);
+  color: var(--text, #f1f5f9);
+}
+
+.lifecycle-tag-preset-btn:disabled {
+  opacity: 0.55;
   cursor: not-allowed;
+}
+
+.lifecycle-panel .lifecycle-table td.lifecycle-tag-cell {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  white-space: normal !important;
+  text-align: center;
 }
 
 .lifecycle-tag-save-hint {
@@ -1551,7 +1544,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .lifecycle-panel .lifecycle-table thead th:not(:first-child) {
-  text-align: center;
+  text-align: center !important;
 }
 
 .lifecycle-panel .lifecycle-table th:nth-child(1),
@@ -1630,7 +1623,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   text-align: center;
 }
 
-.lifecycle-panel .lifecycle-table th:nth-child(n+2):not(:nth-child(10)):not(:nth-child(11)),
 .lifecycle-panel .lifecycle-table td:nth-child(n+2):not(:nth-child(10)):not(:nth-child(11)) {
   text-align: right;
 }
