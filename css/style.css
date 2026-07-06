@@ -1441,7 +1441,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   gap: 6px 10px;
   margin-bottom: 8px;
   min-width: 0;
-  overflow-x: auto;
 }
 
 .lifecycle-numeric-filter {
@@ -1458,9 +1457,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .lifecycle-numeric-input {
-  width: 56px;
+  width: 40px;
   height: var(--life-control-h);
-  padding: 0 4px;
+  padding: 0 2px;
   font-size: 0.8125rem;
   box-sizing: border-box;
 }
@@ -1474,9 +1473,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .lifecycle-tag-search-input {
-  width: 100px;
+  width: 40px;
   height: var(--life-control-h);
-  padding: 0 6px;
+  padding: 0 2px;
   font-size: 0.8125rem;
   box-sizing: border-box;
 }
