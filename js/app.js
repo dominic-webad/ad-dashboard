@@ -59,6 +59,7 @@
       var tagsUnsubscribe = null;
       var tagsPlatform = '';
       var tagPickerCreative = ref('');
+      var tagPickerPos = ref({ top: 0, left: 0 });
 
       var tagPresets = computed(function () {
         var cfg = window.AdTagsConfig;
@@ -844,6 +845,13 @@
         return stats;
       });
 
+      var tagPickerStyle = computed(function () {
+        return {
+          top: tagPickerPos.value.top + 'px',
+          left: tagPickerPos.value.left + 'px',
+        };
+      });
+
       function mergeRemoteTags(remoteTags) {
         if (!remoteTags || !Object.keys(remoteTags).length) return;
         var next = Object.assign({}, creativeTags.value);
@@ -948,23 +956,31 @@
         setCreativeTagText(creative, tokens.join(','));
       }
 
-      function selectTagFilter(preset) {
-        lifecycleTagSearch.value = lifecycleTagSearch.value === preset ? '' : preset;
-      }
-
-      function onTagCellClick(creative) {
-        if (!tagsWritable.value) return;
-        tagPickerCreative.value = tagPickerCreative.value === creative ? '' : creative;
-      }
-
-      function closeTagPicker() {
-        tagPickerCreative.value = '';
-      }
-
       function removeCreativeTag(creative, token) {
         if (!tagsWritable.value) return;
         if (!hasTagToken(creative, token)) return;
         toggleCreativeTag(creative, token);
+      }
+
+      function onTagCellClick(creative, evt) {
+        if (evt && evt.stopPropagation) evt.stopPropagation();
+        if (tagPickerCreative.value === creative) {
+          closeTagPicker();
+          return;
+        }
+        var el = evt && evt.currentTarget;
+        if (el && el.getBoundingClientRect) {
+          var rect = el.getBoundingClientRect();
+          tagPickerPos.value = {
+            top: rect.bottom + 4,
+            left: rect.left + rect.width / 2,
+          };
+        }
+        tagPickerCreative.value = creative;
+      }
+
+      function closeTagPicker() {
+        tagPickerCreative.value = '';
       }
 
       function scheduleTagSave(creative) {
@@ -2306,10 +2322,12 @@
               if (kpiTrendChart) kpiTrendChart.resize();
               syncFunnelColumnWidths();
             });
-            document.addEventListener('click', function () {
+            document.addEventListener('click', function (evt) {
               accountDropdownOpen.value = false;
               countryDropdownOpen.value = false;
-              closeTagPicker();
+              if (!evt.target.closest('.lifecycle-tag-cell') && !evt.target.closest('.lifecycle-tag-picker-fixed')) {
+                closeTagPicker();
+              }
             });
             setupColumnSelection();
             prefetchEcharts();
@@ -2421,8 +2439,8 @@
         onTagCellClick: onTagCellClick,
         closeTagPicker: closeTagPicker,
         tagPickerCreative: tagPickerCreative,
+        tagPickerStyle: tagPickerStyle,
         removeCreativeTag: removeCreativeTag,
-        selectTagFilter: selectTagFilter,
         tagSaveHint: tagSaveHint,
         isTagSaveError: isTagSaveError,
         tagSaveState: tagSaveState,

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>投放效果分析看板</title>
   <link rel="preload" href="./public/fb/manifest.json" as="fetch" crossorigin />
-  <link rel="stylesheet" href="./css/style.css?v=20260707-5" />
+  <link rel="stylesheet" href="./css/style.css?v=20260707-7" />
 </head>
 <body>
   <div id="app">
@@ -722,19 +722,13 @@
                     placeholder="≤"
                   />
                 </label>
-                <label class="lifecycle-numeric-filter lifecycle-tag-filter">
-                  <span>标签</span>
-                  <div class="lifecycle-tag-filter-btns">
-                    <button
-                      type="button"
-                      v-for="p in tagPresets"
-                      :key="p"
-                      class="lifecycle-tag-preset-btn"
-                      :class="{ active: lifecycleTagSearch === p }"
-                      @click="selectTagFilter(p)"
-                    >{{ p }}</button>
-                  </div>
-                </label>
+                <div class="lifecycle-tag-filter-group">
+                  <label class="lifecycle-tag-filter-label" for="lifecycle-tag-filter">标签</label>
+                  <select id="lifecycle-tag-filter" class="lifecycle-tag-select" v-model="lifecycleTagSearch">
+                    <option value="">全部标签</option>
+                    <option v-for="p in tagPresets" :key="p" :value="p">{{ p }}</option>
+                  </select>
+                </div>
               </div>
             </div>
             <div class="lifecycle-controls-right">
@@ -804,9 +798,9 @@
                   <td>{{ formatPercent(item.ctr) }}</td>
                   <td
                     class="lifecycle-tag-cell"
-                    :class="{ 'is-editable': tagsWritable }"
-                    :title="tagsWritable ? '点击选择标签' : ''"
-                    @click="onTagCellClick(item.creative)"
+                    :class="{ 'is-open': tagPickerCreative === item.creative, 'is-empty': !getTagTokens(item.creative).length }"
+                    :title="tagsWritable ? '点击选择标签' : '点击选择标签（需 GitHub Token 才能保存）'"
+                    @click.stop="onTagCellClick(item.creative, $event)"
                   >
                     <span
                       v-for="t in getTagTokens(item.creative)"
@@ -814,20 +808,6 @@
                       class="phase-tag tag-custom"
                       @click.stop="removeCreativeTag(item.creative, t)"
                     >{{ t }}</span>
-                    <div
-                      v-if="tagPickerCreative === item.creative"
-                      class="lifecycle-tag-picker"
-                      @click.stop
-                    >
-                      <button
-                        v-for="p in tagPresets"
-                        :key="p"
-                        type="button"
-                        class="lifecycle-tag-picker-btn"
-                        :class="{ active: hasTagToken(item.creative, p) }"
-                        @click="toggleCreativeTag(item.creative, p)"
-                      >{{ p }}</button>
-                    </div>
                     <span
                       v-if="tagSaveHint(item.creative)"
                       class="lifecycle-tag-save-hint"
@@ -845,6 +825,26 @@
               </tbody>
             </table>
           </div>
+
+          <teleport to="body">
+            <div
+              v-if="tagPickerCreative"
+              class="lifecycle-tag-picker-fixed"
+              :style="tagPickerStyle"
+              @click.stop
+            >
+              <p v-if="!tagsWritable" class="lifecycle-tag-picker-hint">请先在「核心数据模块需登录」区域输入 GitHub Token</p>
+              <button
+                v-for="p in tagPresets"
+                :key="p"
+                type="button"
+                class="lifecycle-tag-picker-btn"
+                :class="{ active: hasTagToken(tagPickerCreative, p) }"
+                :disabled="!tagsWritable"
+                @click="toggleCreativeTag(tagPickerCreative, p)"
+              >{{ p }}</button>
+            </div>
+          </teleport>
         </section>
 
         <div
@@ -912,7 +912,7 @@
 
   <script>
     (function () {
-      var BUILD = '20260707-5';
+      var BUILD = '20260707-7';
       var appEl = document.getElementById('app');
 
       function showBootError(message) {
