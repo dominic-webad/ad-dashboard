@@ -58,11 +58,12 @@
       var tagSaveTimers = {};
       var tagsUnsubscribe = null;
       var tagsPlatform = '';
+      var tagPickerCreative = ref('');
 
       var tagPresets = computed(function () {
         var cfg = window.AdTagsConfig;
         if (cfg && cfg.presets && cfg.presets.length) return cfg.presets;
-        return ['已改多语言'];
+        return ['已改多语言', 'JP', 'FR', 'DE', 'ES', 'PT'];
       });
       var lifecyclePhase = ref('');
       var lifecycleNumericFilters = ref({
@@ -953,8 +954,11 @@
 
       function onTagCellClick(creative) {
         if (!tagsWritable.value) return;
-        if (getTagTokens(creative).length) return;
-        if (tagPresets.value.length) toggleCreativeTag(creative, tagPresets.value[0]);
+        tagPickerCreative.value = tagPickerCreative.value === creative ? '' : creative;
+      }
+
+      function closeTagPicker() {
+        tagPickerCreative.value = '';
       }
 
       function removeCreativeTag(creative, token) {
@@ -2305,6 +2309,7 @@
             document.addEventListener('click', function () {
               accountDropdownOpen.value = false;
               countryDropdownOpen.value = false;
+              closeTagPicker();
             });
             setupColumnSelection();
             prefetchEcharts();
@@ -2414,6 +2419,8 @@
         hasTagToken: hasTagToken,
         toggleCreativeTag: toggleCreativeTag,
         onTagCellClick: onTagCellClick,
+        closeTagPicker: closeTagPicker,
+        tagPickerCreative: tagPickerCreative,
         removeCreativeTag: removeCreativeTag,
         selectTagFilter: selectTagFilter,
         tagSaveHint: tagSaveHint,

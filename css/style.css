@@ -1333,7 +1333,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   --life-col-purchases: 6%;
   --life-col-cpa: 7%;
   --life-col-ctr: 6%;
-  --life-col-tag: 8%;
+  --life-col-tag: 10%;
   --life-col-usage: 6%;
   --life-col-ramp: 7%;
   --life-col-phase: 6%;
@@ -1530,6 +1530,47 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   padding-bottom: 6px !important;
   white-space: normal !important;
   text-align: center;
+  position: relative;
+}
+
+.lifecycle-tag-picker {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 220px;
+  padding: 6px;
+  background: var(--card-bg, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.lifecycle-tag-picker-btn {
+  padding: 3px 8px;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  color: var(--text-muted, #94a3b8);
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border, #334155);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.lifecycle-tag-picker-btn.active {
+  background: rgba(167, 139, 250, 0.25);
+  border-color: #a78bfa;
+  color: #c4b5fd;
+}
+
+.lifecycle-tag-picker-btn:hover {
+  border-color: var(--primary, #3b82f6);
+  color: var(--text, #f1f5f9);
 }
 
 .lifecycle-panel .lifecycle-table td.lifecycle-tag-cell.is-editable {

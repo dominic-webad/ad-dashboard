@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>投放效果分析看板</title>
   <link rel="preload" href="./public/fb/manifest.json" as="fetch" crossorigin />
-  <link rel="stylesheet" href="./css/style.css?v=20260707-4" />
+  <link rel="stylesheet" href="./css/style.css?v=20260707-5" />
 </head>
 <body>
   <div id="app">
@@ -805,7 +805,7 @@
                   <td
                     class="lifecycle-tag-cell"
                     :class="{ 'is-editable': tagsWritable }"
-                    :title="tagsWritable && !getTagTokens(item.creative).length ? '点击添加标签' : ''"
+                    :title="tagsWritable ? '点击选择标签' : ''"
                     @click="onTagCellClick(item.creative)"
                   >
                     <span
@@ -814,6 +814,20 @@
                       class="phase-tag tag-custom"
                       @click.stop="removeCreativeTag(item.creative, t)"
                     >{{ t }}</span>
+                    <div
+                      v-if="tagPickerCreative === item.creative"
+                      class="lifecycle-tag-picker"
+                      @click.stop
+                    >
+                      <button
+                        v-for="p in tagPresets"
+                        :key="p"
+                        type="button"
+                        class="lifecycle-tag-picker-btn"
+                        :class="{ active: hasTagToken(item.creative, p) }"
+                        @click="toggleCreativeTag(item.creative, p)"
+                      >{{ p }}</button>
+                    </div>
                     <span
                       v-if="tagSaveHint(item.creative)"
                       class="lifecycle-tag-save-hint"
@@ -898,7 +912,7 @@
 
   <script>
     (function () {
-      var BUILD = '20260707-4';
+      var BUILD = '20260707-5';
       var appEl = document.getElementById('app');
 
       function showBootError(message) {

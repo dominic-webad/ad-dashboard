@@ -3,5 +3,5 @@ window.AdTagsConfig = {
   repo: 'ad-dashboard',
   branch: 'main',
   platforms: ['fb', 'applovin'],
-  presets: ['已改多语言'],
+  presets: ['已改多语言', 'JP', 'FR', 'DE', 'ES', 'PT'],
 };
