@@ -1472,8 +1472,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   min-width: 0;
 }
 
-.lifecycle-tag-filter-btns,
-.lifecycle-tag-presets {
+.lifecycle-tag-filter-btns {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -1519,6 +1518,19 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   padding-bottom: 6px !important;
   white-space: normal !important;
   text-align: center;
+}
+
+.lifecycle-panel .lifecycle-table td.lifecycle-tag-cell.is-editable {
+  cursor: pointer;
+}
+
+.lifecycle-panel .lifecycle-table .tag-custom {
+  cursor: pointer;
+}
+
+.tag-custom {
+  background: rgba(167, 139, 250, 0.2);
+  color: #c4b5fd;
 }
 
 .lifecycle-tag-save-hint {

@@ -929,6 +929,18 @@
         lifecycleTagSearch.value = lifecycleTagSearch.value === preset ? '' : preset;
       }
 
+      function onTagCellClick(creative) {
+        if (!tagsWritable.value) return;
+        if (getTagTokens(creative).length) return;
+        if (tagPresets.value.length) toggleCreativeTag(creative, tagPresets.value[0]);
+      }
+
+      function removeCreativeTag(creative, token) {
+        if (!tagsWritable.value) return;
+        if (!hasTagToken(creative, token)) return;
+        toggleCreativeTag(creative, token);
+      }
+
       function scheduleTagSave(creative) {
         if (tagSaveTimers[creative]) clearTimeout(tagSaveTimers[creative]);
         tagSaveTimers[creative] = setTimeout(function () {
@@ -2370,6 +2382,8 @@
         getTagTokens: getTagTokens,
         hasTagToken: hasTagToken,
         toggleCreativeTag: toggleCreativeTag,
+        onTagCellClick: onTagCellClick,
+        removeCreativeTag: removeCreativeTag,
         selectTagFilter: selectTagFilter,
         tagSaveHint: tagSaveHint,
         isTagSaveError: isTagSaveError,

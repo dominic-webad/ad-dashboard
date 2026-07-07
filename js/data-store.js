@@ -290,7 +290,7 @@
       var result = Object.assign({}, g, {
         roas: g.spend > 0 ? g.conversionValue / g.spend : 0,
         cpa: g.purchases > 0 ? g.spend / g.purchases : 0,
-        ctr: g.ctrCount > 0 ? g.ctrSum / g.ctrCount : 0,
+        ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0,
         cpc: g.clicks > 0 ? g.spend / g.clicks : 0,
         cpm: g.impressions > 0 ? (g.spend / g.impressions) * 1000 : g.cpmCount > 0 ? g.cpmSum / g.cpmCount : 0,
         daysLive: U.daysBetween(g.launchDate, latestDay || g.launchDate),
@@ -859,7 +859,7 @@
       return Object.assign({}, g, {
         roas: g.spend > 0 ? g.conversionValue / g.spend : 0,
         cpa: g.purchases > 0 ? g.spend / g.purchases : 0,
-        ctr: g.ctrCount > 0 ? g.ctrSum / g.ctrCount : 0,
+        ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0,
         cpc: g.clicks > 0 ? g.spend / g.clicks : 0,
         cpm: g.impressions > 0 ? (g.spend / g.impressions) * 1000 : g.cpmCount > 0 ? g.cpmSum / g.cpmCount : 0,
         daysLive: U.daysBetween(g.launchDate, latestDay || g.launchDate),

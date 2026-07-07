@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>投放效果分析看板</title>
   <link rel="preload" href="./public/fb/manifest.json" as="fetch" crossorigin />
-  <link rel="stylesheet" href="./css/style.css?v=20260706-6" />
+  <link rel="stylesheet" href="./css/style.css?v=20260707-1" />
 </head>
 <body>
   <div id="app">
@@ -788,23 +788,23 @@
                   <td>{{ formatNumber(item.purchases, 0) }}</td>
                   <td>{{ item.purchases > 0 ? formatCurrency(item.cpa) : '—' }}</td>
                   <td>{{ formatPercent(item.ctr) }}</td>
-                  <td class="lifecycle-tag-cell">
-                    <div class="lifecycle-tag-presets">
-                      <button
-                        type="button"
-                        v-for="p in tagPresets"
-                        :key="p"
-                        class="lifecycle-tag-preset-btn"
-                        :class="{ active: hasTagToken(item.creative, p) }"
-                        :disabled="!tagsWritable"
-                        @click="toggleCreativeTag(item.creative, p)"
-                      >{{ p }}</button>
-                    </div>
+                  <td
+                    class="lifecycle-tag-cell"
+                    :class="{ 'is-editable': tagsWritable }"
+                    :title="tagsWritable && !getTagTokens(item.creative).length ? '点击添加标签' : ''"
+                    @click="onTagCellClick(item.creative)"
+                  >
+                    <span
+                      v-for="t in getTagTokens(item.creative)"
+                      :key="t"
+                      class="phase-tag tag-custom"
+                      @click.stop="removeCreativeTag(item.creative, t)"
+                    >{{ t }}</span>
                     <span
                       v-if="tagSaveHint(item.creative)"
                       class="lifecycle-tag-save-hint"
                       :class="{ error: isTagSaveError(item.creative) }"
-                      @click="isTagSaveError(item.creative) && retryTagSave(item.creative)"
+                      @click.stop="isTagSaveError(item.creative) && retryTagSave(item.creative)"
                     >{{ tagSaveHint(item.creative) }}</span>
                   </td>
                   <td>{{ formatNumber(item.usageCount, 0) }}</td>
@@ -884,7 +884,7 @@
 
   <script>
     (function () {
-      var BUILD = '20260706-6';
+      var BUILD = '20260707-1';
       var appEl = document.getElementById('app');
 
       function showBootError(message) {
