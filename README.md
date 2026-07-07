@@ -6,7 +6,7 @@ Meta 与 AppLovin 双平台统一看板，单一入口 `index.html`，顶部 Tab
 
 标签在线保存需要 GitHub Fine-grained PAT（`ad-dashboard` 仓库 **Contents 读写**）。
 
-1. 打开看板，在右上角 **登录** 行下方找到 **GitHub Token** 输入框
+1. 打开看板，在 **「核心数据模块需登录」** 区域（用户名/密码/登录下方）粘贴 GitHub Token
 2. 粘贴 PAT 后会自动保存到本机 `localStorage`，刷新页面无需重新输入
 3. 显示「标签可编辑」后即可在生命周期表格点击添加标签
 
