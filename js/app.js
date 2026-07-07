@@ -842,12 +842,10 @@
       });
 
       function mergeRemoteTags(remoteTags) {
+        if (!remoteTags || !Object.keys(remoteTags).length) return;
         var next = Object.assign({}, creativeTags.value);
-        Object.keys(remoteTags || {}).forEach(function (c) {
+        Object.keys(remoteTags).forEach(function (c) {
           if (tagDraft.value[c] === undefined) next[c] = remoteTags[c];
-        });
-        Object.keys(next).forEach(function (c) {
-          if (!(c in (remoteTags || {})) && tagDraft.value[c] === undefined) delete next[c];
         });
         creativeTags.value = next;
       }
@@ -953,10 +951,16 @@
         if (!window.AdTagsApi || !window.AdTagsApi.isWritable()) return;
         var text = tagDraft.value[creative] != null ? tagDraft.value[creative] : '';
         window.AdTagsApi.saveTag(platform.value, creative, text)
-          .then(function () {
+          .then(function (result) {
+            var savedTags = (result && result.tags) ? result.tags : null;
             var nextTags = Object.assign({}, creativeTags.value);
-            if (text.trim()) nextTags[creative] = text;
-            else delete nextTags[creative];
+            if (savedTags && savedTags[creative] !== undefined) {
+              nextTags[creative] = savedTags[creative];
+            } else if (text.trim()) {
+              nextTags[creative] = text;
+            } else {
+              delete nextTags[creative];
+            }
             creativeTags.value = nextTags;
             var nextDraft = Object.assign({}, tagDraft.value);
             delete nextDraft[creative];

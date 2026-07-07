@@ -1,6 +1,7 @@
 (function () {
   var CACHE_PREFIX = 'ad_tags_';
   var POLL_MS = 30000;
+  var API_VERSION = '2022-11-28';
 
   function getConfig() {
     return window.AdTagsConfig || null;
@@ -20,7 +21,18 @@
   }
 
   function githubContentsUrl(platform, cfg) {
-    return 'https://api.github.com/repos/' + cfg.owner + '/' + cfg.repo + '/contents/' + contentPath(platform) + '?ref=' + (cfg.branch || 'main');
+    return 'https://api.github.com/repos/' + cfg.owner + '/' + cfg.repo
+      + '/contents/' + contentPath(platform) + '?ref=' + (cfg.branch || 'main');
+  }
+
+  function apiHeaders(cfg, extra) {
+    var h = {
+      Authorization: 'Bearer ' + cfg.token,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': API_VERSION,
+    };
+    if (extra) Object.keys(extra).forEach(function (k) { h[k] = extra[k]; });
+    return h;
   }
 
   function readCache(platform) {
@@ -55,6 +67,17 @@
     return btoa(binary);
   }
 
+  function parseApiError(res, bodyText) {
+    var msg = 'GitHub API ' + res.status;
+    try {
+      var j = JSON.parse(bodyText);
+      if (j && j.message) msg += ': ' + j.message;
+    } catch (e) {
+      if (bodyText) msg += ': ' + bodyText.slice(0, 200);
+    }
+    return new Error(msg);
+  }
+
   var stateByPlatform = {};
 
   function ensureState(platform) {
@@ -65,6 +88,7 @@
         listeners: [],
         saveQueue: [],
         saving: false,
+        saveChain: null,
         pollTimer: null,
       };
     }
@@ -103,18 +127,16 @@
     var cfg = getConfig();
     if (!cfg || !cfg.token) return fetchStatic(platform);
     return fetch(githubContentsUrl(platform, cfg), {
-      headers: {
-        Authorization: 'Bearer ' + cfg.token,
-        Accept: 'application/vnd.github+json',
-      },
+      headers: apiHeaders(cfg),
     }).then(function (res) {
-      if (res.status === 404) return { tags: {}, sha: null };
-      if (!res.ok) throw new Error('GitHub 标签加载失败 ' + res.status);
-      return res.json();
-    }).then(function (data) {
-      if (!data.content) return { tags: {}, sha: data.sha || null };
-      var json = decodeGitHubContent(data.content);
-      return { tags: json.tags || {}, sha: data.sha || null };
+      return res.text().then(function (text) {
+        if (res.status === 404) return { tags: {}, sha: null };
+        if (!res.ok) throw parseApiError(res, text);
+        var data = JSON.parse(text);
+        if (!data.content) return { tags: {}, sha: data.sha || null };
+        var json = decodeGitHubContent(data.content);
+        return { tags: json.tags || {}, sha: data.sha || null };
+      });
     });
   }
 
@@ -125,6 +147,11 @@
     }
     return fetchFromGitHub(platform).then(function (result) {
       var st = ensureState(platform);
+      var remoteEmpty = !result.tags || !Object.keys(result.tags).length;
+      var cacheHasTags = cached && cached.tags && Object.keys(cached.tags).length > 0;
+      if (remoteEmpty && cacheHasTags && !result.sha) {
+        return { tags: st.tags, sha: st.sha };
+      }
       if (!cached || result.sha !== st.sha) {
         applyTags(platform, result.tags, result.sha);
       }
@@ -151,6 +178,12 @@
     };
   }
 
+  function extractShaFromPutResponse(data) {
+    if (data && data.content && data.content.sha) return data.content.sha;
+    if (data && data.commit && data.commit.sha) return data.commit.sha;
+    return null;
+  }
+
   function putTags(platform, retry) {
     var cfg = getConfig();
     if (!cfg || !cfg.token) return Promise.reject(new Error('未配置 Token'));
@@ -168,51 +201,67 @@
     if (st.sha) payload.sha = st.sha;
     return fetch(githubContentsUrl(platform, cfg), {
       method: 'PUT',
-      headers: {
-        Authorization: 'Bearer ' + cfg.token,
-        Accept: 'application/vnd.github+json',
-        'Content-Type': 'application/json',
-      },
+      headers: apiHeaders(cfg, { 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
     }).then(function (res) {
-      if (res.status === 409 && !retry) {
-        return fetchFromGitHub(platform).then(function (fresh) {
-          var merged = Object.assign({}, fresh.tags, st.tags);
-          st.tags = merged;
-          st.sha = fresh.sha;
-          return putTags(platform, true);
-        });
-      }
-      if (!res.ok) throw new Error('标签保存失败 ' + res.status);
-      return res.json();
-    }).then(function (data) {
-      if (data && data.content && data.content.sha) {
-        st.sha = data.content.sha;
+      return res.text().then(function (text) {
+        if (res.status === 409 && !retry) {
+          return fetchFromGitHub(platform).then(function (fresh) {
+            var merged = Object.assign({}, fresh.tags, st.tags);
+            st.tags = merged;
+            st.sha = fresh.sha;
+            return putTags(platform, true);
+          });
+        }
+        if (!res.ok) throw parseApiError(res, text);
+        var data = JSON.parse(text);
+        var newSha = extractShaFromPutResponse(data);
+        if (!newSha) {
+          throw new Error('GitHub 保存成功但未返回 sha，请刷新后重试');
+        }
+        st.sha = newSha;
         writeCache(platform, { sha: st.sha, tags: st.tags, fetchedAt: Date.now() });
         notify(platform);
-      }
+        return { sha: st.sha, tags: st.tags };
+      });
     });
   }
 
-  function processSaveQueue(platform) {
+  function runSaveQueue(platform) {
     var st = ensureState(platform);
-    if (st.saving || !st.saveQueue.length) return Promise.resolve();
-    st.saving = true;
+    if (!st.saveQueue.length) return Promise.resolve({ tags: st.tags, sha: st.sha });
     var pending = st.saveQueue.splice(0);
     pending.forEach(function (item) {
       var text = item.tagText == null ? '' : String(item.tagText);
       if (text.trim()) st.tags[item.creative] = text;
       else delete st.tags[item.creative];
     });
-    return putTags(platform, false)
+    return putTags(platform, false).catch(function (err) {
+      st.saveQueue = pending.concat(st.saveQueue);
+      throw err;
+    });
+  }
+
+  function processSaveQueue(platform) {
+    var st = ensureState(platform);
+    if (st.saveChain) return st.saveChain;
+    st.saveChain = Promise.resolve()
+      .then(function loop() {
+        if (!st.saveQueue.length) return { tags: st.tags, sha: st.sha };
+        st.saving = true;
+        return runSaveQueue(platform).then(function () {
+          st.saving = false;
+          return loop();
+        });
+      })
       .catch(function (err) {
-        st.saveQueue = pending.concat(st.saveQueue);
+        st.saving = false;
         throw err;
       })
       .finally(function () {
-        st.saving = false;
-        if (st.saveQueue.length) processSaveQueue(platform);
+        st.saveChain = null;
       });
+    return st.saveChain;
   }
 
   function saveTag(platform, creative, tagText) {
@@ -224,8 +273,10 @@
 
   function pollIfStale(platform) {
     if (!isWritable()) return;
+    var st = ensureState(platform);
+    if (st.saving || st.saveQueue.length || st.saveChain) return;
     fetchFromGitHub(platform).then(function (result) {
-      var st = ensureState(platform);
+      if (st.saving || st.saveQueue.length || st.saveChain) return;
       if (result.sha && result.sha !== st.sha) {
         applyTags(platform, result.tags, result.sha);
       }
