@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>投放效果分析看板</title>
   <link rel="preload" href="./public/fb/manifest.json" as="fetch" crossorigin />
-  <link rel="stylesheet" href="./css/style.css?v=20260707-2" />
+  <link rel="stylesheet" href="./css/style.css?v=20260707-3" />
 </head>
 <body>
   <div id="app">
@@ -38,14 +38,30 @@
               <p>{{ platformConfig.subtitle }}</p>
             </div>
           </div>
-          <div class="header-meta">
-            <span class="badge badge-muted">{{ formatDateDisplay(manifestDateRange.min) }} ~ {{ formatDateDisplay(manifestDateRange.max) }}</span>
-            <template v-if="isLoggedIn">
-              <span class="badge badge-user">{{ authUser ? authUser.displayName : '' }}</span>
-              <span v-if="protectedScopeHint && protectedScopeHint !== '全部数据'" class="badge badge-scope">{{ protectedScopeHint }}</span>
-              <button type="button" class="btn-auth" @click="handleLogout">退出</button>
-            </template>
-            <button v-else type="button" class="btn-auth btn-auth-primary" @click="openLoginModal">登录</button>
+          <div class="header-side">
+            <div class="header-meta">
+              <span class="badge badge-muted">{{ formatDateDisplay(manifestDateRange.min) }} ~ {{ formatDateDisplay(manifestDateRange.max) }}</span>
+              <template v-if="isLoggedIn">
+                <span class="badge badge-user">{{ authUser ? authUser.displayName : '' }}</span>
+                <span v-if="protectedScopeHint && protectedScopeHint !== '全部数据'" class="badge badge-scope">{{ protectedScopeHint }}</span>
+                <button type="button" class="btn-auth" @click="handleLogout">退出</button>
+              </template>
+              <button v-else type="button" class="btn-auth btn-auth-primary" @click="openLoginModal">登录</button>
+            </div>
+            <div class="header-token-row">
+              <label class="header-token-label" for="github-token-input">GitHub Token</label>
+              <input
+                id="github-token-input"
+                type="password"
+                class="header-token-input"
+                v-model="githubToken"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="粘贴 PAT（仅本机保存，用于标签读写）"
+                @input="onGithubTokenChange"
+              />
+              <span class="badge" :class="tagsWritable ? 'badge-token-ok' : 'badge-token-muted'">{{ tagsWritable ? '标签可编辑' : '标签只读' }}</span>
+            </div>
           </div>
         </header>
 
@@ -884,7 +900,7 @@
 
   <script>
     (function () {
-      var BUILD = '20260707-2';
+      var BUILD = '20260707-3';
       var appEl = document.getElementById('app');
 
       function showBootError(message) {

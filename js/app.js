@@ -53,6 +53,8 @@
       var tagDraft = ref({});
       var tagSaveState = ref({});
       var tagsWritable = ref(false);
+      var githubToken = ref('');
+      var githubTokenTimer = null;
       var tagSaveTimers = {};
       var tagsUnsubscribe = null;
       var tagsPlatform = '';
@@ -848,6 +850,28 @@
           if (tagDraft.value[c] === undefined) next[c] = remoteTags[c];
         });
         creativeTags.value = next;
+      }
+
+      function loadGithubTokenFromStorage() {
+        try {
+          githubToken.value = localStorage.getItem('ad_dashboard_github_pat') || '';
+        } catch (e) {
+          githubToken.value = '';
+        }
+        if (window.AdTagsApi) window.AdTagsApi.setToken(githubToken.value.trim());
+      }
+
+      function applyGithubToken() {
+        var t = githubToken.value.trim();
+        if (window.AdTagsApi) window.AdTagsApi.setToken(t);
+        teardownTags();
+        tagsPlatform = '';
+        initTagsForPlatform(platform.value);
+      }
+
+      function onGithubTokenChange() {
+        if (githubTokenTimer) clearTimeout(githubTokenTimer);
+        githubTokenTimer = setTimeout(applyGithubToken, 400);
       }
 
       function teardownTags() {
@@ -2264,6 +2288,7 @@
         if (window.AdAuth) {
           authUser.value = window.AdAuth.getSessionUser();
         }
+        loadGithubTokenFromStorage();
 
         loadData()
           .then(function () { return nextTick(); })
@@ -2382,6 +2407,8 @@
         lifecycleTagSearch: lifecycleTagSearch,
         tagPresets: tagPresets,
         tagsWritable: tagsWritable,
+        githubToken: githubToken,
+        onGithubTokenChange: onGithubTokenChange,
         getTagDisplay: getTagDisplay,
         getTagTokens: getTagTokens,
         hasTagToken: hasTagToken,

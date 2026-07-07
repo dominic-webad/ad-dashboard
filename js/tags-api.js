@@ -3,14 +3,40 @@
   var POLL_MS = 30000;
   var API_VERSION = '2022-11-28';
 
+  var TOKEN_STORAGE_KEY = 'ad_dashboard_github_pat';
+  var runtimeToken = '';
+
   function getConfig() {
     return window.AdTagsConfig || null;
   }
 
+  function loadStoredToken() {
+    try {
+      return localStorage.getItem(TOKEN_STORAGE_KEY) || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function getToken() {
+    if (runtimeToken) return runtimeToken;
+    return loadStoredToken();
+  }
+
+  function setToken(token) {
+    runtimeToken = String(token || '').trim();
+    try {
+      if (runtimeToken) localStorage.setItem(TOKEN_STORAGE_KEY, runtimeToken);
+      else localStorage.removeItem(TOKEN_STORAGE_KEY);
+    } catch (e) { /* private mode */ }
+  }
+
   function isWritable() {
     var cfg = getConfig();
-    return !!(cfg && cfg.token && cfg.owner && cfg.repo);
+    return !!(cfg && cfg.owner && cfg.repo && getToken());
   }
+
+  runtimeToken = loadStoredToken();
 
   function cacheKey(platform) {
     return CACHE_PREFIX + platform;
@@ -27,7 +53,7 @@
 
   function apiHeaders(cfg, extra) {
     var h = {
-      Authorization: 'Bearer ' + cfg.token,
+      Authorization: 'Bearer ' + getToken(),
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': API_VERSION,
     };
@@ -125,7 +151,7 @@
 
   function fetchFromGitHub(platform) {
     var cfg = getConfig();
-    if (!cfg || !cfg.token) return fetchStatic(platform);
+    if (!cfg || !getToken()) return fetchStatic(platform);
     return fetch(githubContentsUrl(platform, cfg), {
       headers: apiHeaders(cfg),
     }).then(function (res) {
@@ -186,7 +212,7 @@
 
   function putTags(platform, retry) {
     var cfg = getConfig();
-    if (!cfg || !cfg.token) return Promise.reject(new Error('未配置 Token'));
+    if (!cfg || !getToken()) return Promise.reject(new Error('未配置 Token'));
     var st = ensureState(platform);
     var body = {
       version: 1,
@@ -333,6 +359,8 @@
     stopPolling: stopPolling,
     pollIfStale: pollIfStale,
     isWritable: isWritable,
+    getToken: getToken,
+    setToken: setToken,
     splitTagTokens: splitTagTokens,
     collectTagSuggestions: collectTagSuggestions,
   };
