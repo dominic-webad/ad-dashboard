@@ -2,7 +2,7 @@
 const fs = require('fs');
 const { execSync } = require('child_process');
 const path = require('path');
-const { writeMonthlyOutput, loadExistingForIncremental } = require('./lib/monthly-output');
+const { writeAggMapMonthlyOutput, loadExistingForIncremental, ensureNodeHeap } = require('./lib/monthly-output');
 
 const ROOT = path.join(__dirname, '..');
 const DATA_DIR = ROOT;
@@ -198,70 +198,53 @@ function mergeRowsIntoAggMap(rows, aggMap) {
   return merged;
 }
 
-function loadAggMapFromExisting(existingData) {
-  const aggMap = new Map();
-  if (!existingData || !Array.isArray(existingData.rows)) return aggMap;
+function ingestCompactRowIntoAggMap(aggMap, days, accounts, creatives, row) {
+  const day = days[row[0]];
+  const accountName = accounts[row[1]];
+  const country = row[2];
+  const creative = creatives[row[3]];
+  if (!day || !accountName || !creative) return;
 
-  const days = existingData.days;
-  const accounts = existingData.accounts;
-  const creatives = existingData.creatives;
-  const rows = existingData.rows;
-
-  for (const row of rows) {
-    const day = days[row[0]];
-    const accountName = accounts[row[1]];
-    const country = row[2];
-    const creative = creatives[row[3]];
-    if (!day || !accountName || !creative) continue;
-
-    const key = [day, accountName, country, creative].join('\0');
-    const ctr = row[8] || 0;
-    const cpc = row[9] || 0;
-    aggMap.set(key, {
-      day: day,
-      accountName: accountName,
-      country: country,
-      creative: creative,
-      spend: row[4] || 0,
-      purchases: row[5] || 0,
-      conversionValue: row[6] || 0,
-      clicks: row[7] || 0,
-      landingPageViews: row[11] || 0,
-      addsToCart: row[12] || 0,
-      checkoutsInitiated: row[13] || 0,
-      addsPaymentInfo: row[14] || 0,
-      ctrSum: ctr,
-      ctrCount: ctr > 0 ? 1 : 0,
-      cpcSum: cpc,
-      cpcCount: cpc > 0 ? 1 : 0,
-    });
-  }
-  return aggMap;
+  const key = [day, accountName, country, creative].join('\0');
+  const ctr = row[8] || 0;
+  const cpc = row[9] || 0;
+  aggMap.set(key, {
+    day: day,
+    accountName: accountName,
+    country: country,
+    creative: creative,
+    spend: row[4] || 0,
+    purchases: row[5] || 0,
+    conversionValue: row[6] || 0,
+    clicks: row[7] || 0,
+    landingPageViews: row[11] || 0,
+    addsToCart: row[12] || 0,
+    checkoutsInitiated: row[13] || 0,
+    addsPaymentInfo: row[14] || 0,
+    ctrSum: ctr,
+    ctrCount: ctr > 0 ? 1 : 0,
+    cpcSum: cpc,
+    cpcCount: cpc > 0 ? 1 : 0,
+  });
 }
 
-function buildOutput(aggMap, sourceFiles) {
-  const dayList = [...new Set([...aggMap.values()].map(function (r) { return r.day; }))].sort();
-  const dayMap = new Map(dayList.map(function (d, i) { return [d, i]; }));
-  const accountList = [...new Set([...aggMap.values()].map(function (r) { return r.accountName; }))].sort();
-  const accountMap = new Map(accountList.map(function (a, i) { return [a, i]; }));
-  const creativeList = [...new Set([...aggMap.values()].map(function (r) { return r.creative; }))].sort();
-  const creativeMap = new Map(creativeList.map(function (c, i) { return [c, i]; }));
+function fbAggRecordToItem(r) {
+  const spend = +r.spend.toFixed(2);
+  const purchases = +r.purchases.toFixed(2);
+  const conversionValue = +r.conversionValue.toFixed(2);
+  const clicks = r.clicks;
+  const ctr = r.ctrCount > 0 ? +(r.ctrSum / r.ctrCount).toFixed(4) : 0;
+  const cpc = r.cpcCount > 0
+    ? +(r.cpcSum / r.cpcCount).toFixed(4)
+    : r.clicks > 0 ? +(r.spend / r.clicks).toFixed(4) : 0;
+  const impressions = ctr > 0 ? Math.round((clicks / ctr) * 100) : 0;
 
-  const compactRows = [];
-  for (const r of aggMap.values()) {
-    const spend = +r.spend.toFixed(2);
-    const purchases = +r.purchases.toFixed(2);
-    const conversionValue = +r.conversionValue.toFixed(2);
-    const clicks = r.clicks;
-    const ctr = r.ctrCount > 0 ? +(r.ctrSum / r.ctrCount).toFixed(4) : 0;
-    const cpc = r.cpcCount > 0 ? +(r.cpcSum / r.cpcCount).toFixed(4) : r.clicks > 0 ? +(r.spend / r.clicks).toFixed(4) : 0;
-    const impressions = ctr > 0 ? Math.round((clicks / ctr) * 100) : 0;
-
-    compactRows.push([
-      dayMap.get(r.day),
-      accountMap.get(r.accountName),
-      r.country,
-      creativeMap.get(r.creative),
+  return {
+    day: r.day,
+    account: r.accountName,
+    country: r.country,
+    creative: r.creative,
+    cells: [
       spend,
       purchases,
       conversionValue,
@@ -273,27 +256,7 @@ function buildOutput(aggMap, sourceFiles) {
       r.addsToCart,
       r.checkoutsInitiated,
       r.addsPaymentInfo,
-    ]);
-  }
-
-  const countries = [...new Set(compactRows.map(function (r) { return r[2]; }))].sort();
-
-  return {
-    meta: {
-      generatedAt: new Date().toISOString(),
-      totalRecords: compactRows.length,
-      sourceFiles: sourceFiles,
-      dateRange: { min: dayList[0] || '', max: dayList[dayList.length - 1] || '' },
-      platform: 'fb',
-      optimizers: OPTIMIZERS,
-      accounts: accountList,
-      countries: countries,
-      compact: true,
-    },
-    days: dayList,
-    accounts: accountList,
-    creatives: creativeList,
-    rows: compactRows,
+    ],
   };
 }
 
@@ -309,10 +272,21 @@ function processExcelFile(filePath, aggMap) {
   return count;
 }
 
+function dateRangeFromManifest(manifest) {
+  let min = '';
+  let max = '';
+  (manifest.months || []).forEach(function (m) {
+    if (m.dateRange.min && (!min || m.dateRange.min < min)) min = m.dateRange.min;
+    if (m.dateRange.max && (!max || m.dateRange.max > max)) max = m.dateRange.max;
+  });
+  return { min: min, max: max };
+}
+
 function main() {
+  ensureNodeHeap();
   const forceFull = process.argv.includes('--full');
   const allExcelFiles = findExcelFiles(DATA_DIR);
-  const existingState = forceFull ? null : loadExistingForIncremental(OUT_DIR, loadAggMapFromExisting);
+  const existingState = forceFull ? null : loadExistingForIncremental(OUT_DIR, ingestCompactRowIntoAggMap);
 
   let filesToProcess;
   let sourceFiles;
@@ -350,9 +324,13 @@ function main() {
   console.log('处理 ' + filesToProcess.length + ' 个 Excel 文件:');
   filesToProcess.forEach(function (f) { processExcelFile(f, aggMap); });
 
-  const output = buildOutput(aggMap, sourceFiles);
-  writeMonthlyOutput(OUT_DIR, 'fb', output, sourceFiles);
-  console.log('日期范围: ' + output.meta.dateRange.min + ' ~ ' + output.meta.dateRange.max);
+  console.log('写出 JSON 分片（共 ' + aggMap.size + ' 条）…');
+  const manifest = writeAggMapMonthlyOutput(OUT_DIR, 'fb', aggMap, sourceFiles, {
+    meta: { optimizers: OPTIMIZERS },
+    recordToItem: fbAggRecordToItem,
+  });
+  const dr = dateRangeFromManifest(manifest);
+  console.log('日期范围: ' + dr.min + ' ~ ' + dr.max);
 }
 
 main();

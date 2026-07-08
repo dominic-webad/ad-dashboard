@@ -230,6 +230,12 @@ function splitCompactByMonth(output) {
   return monthOutputs;
 }
 
+function isDataChunkRelativePath(relativeFile) {
+  if (/^\d{4}-\d{2}\.json$/.test(relativeFile)) return true;
+  if (/^\d{4}-\d{2}\/\d{2}-\d{2}\.json$/.test(relativeFile)) return true;
+  return false;
+}
+
 function listExistingDataFiles(outDir) {
   const files = [];
   if (!fs.existsSync(outDir)) return files;
@@ -237,12 +243,15 @@ function listExistingDataFiles(outDir) {
     const full = path.join(outDir, name);
     if (name === 'manifest.json') return;
     if (name.endsWith('.json') && fs.statSync(full).isFile()) {
-      files.push(name);
+      if (isDataChunkRelativePath(name)) files.push(name);
       return;
     }
     if (fs.statSync(full).isDirectory() && /^\d{4}-\d{2}$/.test(name)) {
       fs.readdirSync(full).forEach(function (partName) {
-        if (partName.endsWith('.json')) files.push(name + '/' + partName);
+        const relativeFile = name + '/' + partName;
+        if (partName.endsWith('.json') && isDataChunkRelativePath(relativeFile)) {
+          files.push(relativeFile);
+        }
       });
     }
   });
@@ -255,7 +264,7 @@ function cleanupStaleDataFiles(outDir, keepFiles) {
     if (keep.has(relativeFile)) return;
     const full = path.join(outDir, relativeFile);
     fs.unlinkSync(full);
-    console.log('  删除旧文件 ' + relativeFile);
+    console.log('  删除旧数据分片 ' + relativeFile);
   });
 
   if (!fs.existsSync(outDir)) return;
@@ -269,9 +278,8 @@ function cleanupStaleDataFiles(outDir, keepFiles) {
   });
 }
 
-function writeMonthlyOutput(outDir, platform, output, sourceFiles) {
+function writeMonthMapToDisk(outDir, platform, monthMap, sourceFiles, sourceFilesFallback) {
   fs.mkdirSync(outDir, { recursive: true });
-  const monthMap = splitCompactByWeek(output);
   const monthIds = Array.from(monthMap.keys()).sort();
   const keepFiles = [];
   const months = [];
@@ -324,7 +332,7 @@ function writeMonthlyOutput(outDir, platform, output, sourceFiles) {
     generatedAt: new Date().toISOString(),
     defaultMonth: defaultMonth,
     chunkDays: WEEK_DAYS,
-    sourceFiles: sourceFiles || output.meta.sourceFiles || [],
+    sourceFiles: sourceFiles || sourceFilesFallback || [],
     months: months,
   };
   fs.writeFileSync(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
@@ -332,22 +340,105 @@ function writeMonthlyOutput(outDir, platform, output, sourceFiles) {
   return manifest;
 }
 
-function loadExistingForIncremental(outDir, loadAggMapFromExisting) {
+function writeMonthlyOutput(outDir, platform, output, sourceFiles) {
+  const monthMap = splitCompactByWeek(output);
+  return writeMonthMapToDisk(outDir, platform, monthMap, sourceFiles, output.meta.sourceFiles);
+}
+
+function writeAggMapMonthlyOutput(outDir, platform, aggMap, sourceFiles, options) {
+  options = options || {};
+  const recordToItem = options.recordToItem;
+  if (typeof recordToItem !== 'function') {
+    throw new Error('writeAggMapMonthlyOutput 需要 options.recordToItem');
+  }
+
+  const groups = new Map();
+  const accountSet = new Set();
+  const countrySet = new Set();
+  let minDay = '';
+  let maxDay = '';
+
+  for (const rec of aggMap.values()) {
+    if (rec.accountName) accountSet.add(rec.accountName);
+    if (rec.country) countrySet.add(rec.country);
+    if (rec.day) {
+      if (!minDay || rec.day < minDay) minDay = rec.day;
+      if (!maxDay || rec.day > maxDay) maxDay = rec.day;
+    }
+    const part = weekPartForDay(rec.day);
+    if (!groups.has(part.id)) groups.set(part.id, { part: part, items: [] });
+    groups.get(part.id).items.push(recordToItem(rec));
+  }
+
+  const baseMeta = Object.assign({
+    generatedAt: new Date().toISOString(),
+    totalRecords: aggMap.size,
+    platform: platform,
+    accounts: Array.from(accountSet).sort(),
+    countries: Array.from(countrySet).sort(),
+    compact: true,
+    dateRange: { min: minDay, max: maxDay },
+  }, options.meta || {});
+
+  const monthMap = new Map();
+  groups.forEach(function (group, partId) {
+    const monthId = monthIdFromDay(group.part.dateRange.min);
+    const data = buildCompactChunk(group.items, baseMeta, {
+      month: monthId,
+      part: partId,
+    });
+    if (!monthMap.has(monthId)) monthMap.set(monthId, []);
+    monthMap.get(monthId).push({ part: group.part, data: data });
+  });
+
+  monthMap.forEach(function (parts) {
+    parts.sort(function (a, b) {
+      return a.part.dateRange.min.localeCompare(b.part.dateRange.min);
+    });
+  });
+
+  return writeMonthMapToDisk(outDir, platform, monthMap, sourceFiles);
+}
+
+function loadExistingForIncremental(outDir, ingestCompactRow) {
   const manifest = readManifest(outDir);
-  if (!manifest) return { manifest: null, data: null, aggMap: new Map() };
-  const data = loadAllMonthlyData(outDir, manifest);
-  data.meta = {
-    sourceFiles: manifest.sourceFiles || [],
-    totalRecords: data.rows.length,
-    dateRange: data.days.length
-      ? { min: data.days[0], max: data.days[data.days.length - 1] }
-      : { min: '', max: '' },
-  };
-  return {
-    manifest: manifest,
-    data: data,
-    aggMap: loadAggMapFromExisting(data),
-  };
+  if (!manifest) return { manifest: null, aggMap: new Map() };
+
+  const aggMap = new Map();
+  expandMonthEntries(manifest).forEach(function (entry) {
+    const data = loadJsonFile(outDir, entry.file);
+    if (!data || !Array.isArray(data.rows)) return;
+    const days = data.days;
+    const accounts = data.accounts;
+    const creatives = data.creatives;
+    for (let i = 0; i < data.rows.length; i++) {
+      ingestCompactRow(aggMap, days, accounts, creatives, data.rows[i]);
+    }
+  });
+
+  return { manifest: manifest, aggMap: aggMap };
+}
+
+function ensureNodeHeap(minMb) {
+  if (process.env.AD_DASHBOARD_NO_HEAP_REEXEC === '1') return;
+  const wantMb = minMb || parseInt(process.env.AD_DASHBOARD_HEAP_MB || '8192', 10);
+  const v8 = require('v8');
+  const currentMb = Math.floor(v8.getHeapStatistics().heap_size_limit / 1024 / 1024);
+  if (currentMb >= wantMb - 64) return;
+
+  const { spawnSync } = require('child_process');
+  const nodeOpts = (process.env.NODE_OPTIONS || '').trim();
+  const extra = '--max-old-space-size=' + wantMb;
+  const nextOpts = nodeOpts.includes('max-old-space-size') ? nodeOpts : (nodeOpts + ' ' + extra).trim();
+  console.log('Node 堆上限 ' + currentMb + ' MB 不足，以 ' + wantMb + ' MB 重新启动…');
+  const result = spawnSync(process.execPath, process.argv.slice(1), {
+    stdio: 'inherit',
+    env: Object.assign({}, process.env, {
+      NODE_OPTIONS: nextOpts,
+      AD_DASHBOARD_NO_HEAP_REEXEC: '1',
+    }),
+  });
+  process.exit(result.status != null ? result.status : 1);
 }
 
 module.exports = {
@@ -360,6 +451,9 @@ module.exports = {
   splitCompactByMonth: splitCompactByMonth,
   splitCompactByWeek: splitCompactByWeek,
   writeMonthlyOutput: writeMonthlyOutput,
+  writeAggMapMonthlyOutput: writeAggMapMonthlyOutput,
   loadExistingForIncremental: loadExistingForIncremental,
   expandMonthEntries: expandMonthEntries,
+  ensureNodeHeap: ensureNodeHeap,
+  isDataChunkRelativePath: isDataChunkRelativePath,
 };
