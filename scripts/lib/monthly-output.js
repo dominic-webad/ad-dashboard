@@ -278,6 +278,137 @@ function cleanupStaleDataFiles(outDir, keepFiles) {
   });
 }
 
+function partIdsFromDays(days) {
+  const ids = new Set();
+  if (!days) return ids;
+  days.forEach(function (day) {
+    if (day) ids.add(weekPartForDay(day).id);
+  });
+  return ids;
+}
+
+function writeChunkFile(outDir, chunk) {
+  const relativeFile = chunk.part.file;
+  const filePath = path.join(outDir, relativeFile);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(chunk.data));
+  const sizeMb = (fs.statSync(filePath).size / 1024 / 1024).toFixed(2);
+  console.log(
+    '  写出 ' + relativeFile + ': ' + chunk.data.meta.totalRecords + ' 条 (' + sizeMb + ' MB)'
+  );
+  return relativeFile;
+}
+
+function summarizeMonthParts(parts) {
+  let monthRecords = 0;
+  let monthMin = '';
+  let monthMax = '';
+  (parts || []).forEach(function (part) {
+    monthRecords += part.totalRecords || 0;
+    const dr = part.dateRange || {};
+    if (dr.min && (!monthMin || dr.min < monthMin)) monthMin = dr.min;
+    if (dr.max && (!monthMax || dr.max > monthMax)) monthMax = dr.max;
+  });
+  return {
+    dateRange: { min: monthMin, max: monthMax },
+    totalRecords: monthRecords,
+  };
+}
+
+function writePartialMonthMapToDisk(outDir, platform, touchedMonthMap, sourceFiles, existingManifest) {
+  fs.mkdirSync(outDir, { recursive: true });
+  const touchedByFile = new Map();
+  touchedMonthMap.forEach(function (parts) {
+    parts.forEach(function (chunk) {
+      touchedByFile.set(chunk.part.file, chunk);
+    });
+  });
+
+  const months = [];
+  (existingManifest.months || []).forEach(function (existingMonth) {
+    const manifestParts = [];
+    (existingMonth.parts || []).forEach(function (existingPart) {
+      const chunk = touchedByFile.get(existingPart.file);
+      if (chunk) {
+        writeChunkFile(outDir, chunk);
+        manifestParts.push({
+          id: chunk.part.id,
+          file: existingPart.file,
+          dateRange: chunk.part.dateRange,
+          totalRecords: chunk.data.meta.totalRecords,
+        });
+        touchedByFile.delete(existingPart.file);
+      } else {
+        manifestParts.push(existingPart);
+      }
+    });
+    const summary = summarizeMonthParts(manifestParts);
+    months.push({
+      id: existingMonth.id,
+      dateRange: summary.dateRange,
+      totalRecords: summary.totalRecords,
+      parts: manifestParts,
+    });
+  });
+
+  if (touchedByFile.size) {
+    const newMonths = new Map();
+    touchedMonthMap.forEach(function (parts, monthId) {
+      parts.forEach(function (chunk) {
+        if (!touchedByFile.has(chunk.part.file)) return;
+        if (!newMonths.has(monthId)) newMonths.set(monthId, []);
+        newMonths.get(monthId).push(chunk);
+      });
+    });
+
+    Array.from(newMonths.keys()).sort().forEach(function (monthId) {
+      const manifestParts = [];
+      newMonths.get(monthId).forEach(function (chunk) {
+        writeChunkFile(outDir, chunk);
+        manifestParts.push({
+          id: chunk.part.id,
+          file: chunk.part.file,
+          dateRange: chunk.part.dateRange,
+          totalRecords: chunk.data.meta.totalRecords,
+        });
+        touchedByFile.delete(chunk.part.file);
+      });
+      manifestParts.sort(function (a, b) {
+        return (a.dateRange.min || '').localeCompare(b.dateRange.min || '');
+      });
+      const summary = summarizeMonthParts(manifestParts);
+      months.push({
+        id: monthId,
+        dateRange: summary.dateRange,
+        totalRecords: summary.totalRecords,
+        parts: manifestParts,
+      });
+    });
+    months.sort(function (a, b) { return a.id.localeCompare(b.id); });
+  }
+
+  const keepFiles = [];
+  months.forEach(function (month) {
+    (month.parts || []).forEach(function (part) {
+      keepFiles.push(part.file);
+    });
+  });
+  cleanupStaleDataFiles(outDir, keepFiles);
+
+  const defaultMonth = months.length ? months[months.length - 1].id : '';
+  const manifest = {
+    platform: platform,
+    generatedAt: new Date().toISOString(),
+    defaultMonth: defaultMonth,
+    chunkDays: WEEK_DAYS,
+    sourceFiles: sourceFiles || existingManifest.sourceFiles || [],
+    months: months,
+  };
+  fs.writeFileSync(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+  console.log('manifest -> ' + path.join(outDir, 'manifest.json') + ' (' + months.length + ' 个月, 按 ' + WEEK_DAYS + ' 天分段)');
+  return manifest;
+}
+
 function writeMonthMapToDisk(outDir, platform, monthMap, sourceFiles, sourceFilesFallback) {
   fs.mkdirSync(outDir, { recursive: true });
   const monthIds = Array.from(monthMap.keys()).sort();
@@ -286,28 +417,11 @@ function writeMonthMapToDisk(outDir, platform, monthMap, sourceFiles, sourceFile
 
   monthIds.forEach(function (monthId) {
     const parts = monthMap.get(monthId);
-    let monthRecords = 0;
-    let monthMin = '';
-    let monthMax = '';
     const manifestParts = [];
 
     parts.forEach(function (chunk) {
-      const relativeFile = chunk.part.file;
-      const filePath = path.join(outDir, relativeFile);
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, JSON.stringify(chunk.data));
+      const relativeFile = writeChunkFile(outDir, chunk);
       keepFiles.push(relativeFile);
-
-      const sizeMb = (fs.statSync(filePath).size / 1024 / 1024).toFixed(2);
-      console.log(
-        '  写出 ' + relativeFile + ': ' + chunk.data.meta.totalRecords + ' 条 (' + sizeMb + ' MB)'
-      );
-
-      monthRecords += chunk.data.meta.totalRecords;
-      const dr = chunk.data.meta.dateRange || {};
-      if (dr.min && (!monthMin || dr.min < monthMin)) monthMin = dr.min;
-      if (dr.max && (!monthMax || dr.max > monthMax)) monthMax = dr.max;
-
       manifestParts.push({
         id: chunk.part.id,
         file: relativeFile,
@@ -316,10 +430,11 @@ function writeMonthMapToDisk(outDir, platform, monthMap, sourceFiles, sourceFile
       });
     });
 
+    const summary = summarizeMonthParts(manifestParts);
     months.push({
       id: monthId,
-      dateRange: { min: monthMin, max: monthMax },
-      totalRecords: monthRecords,
+      dateRange: summary.dateRange,
+      totalRecords: summary.totalRecords,
       parts: manifestParts,
     });
   });
@@ -352,6 +467,23 @@ function writeAggMapMonthlyOutput(outDir, platform, aggMap, sourceFiles, options
     throw new Error('writeAggMapMonthlyOutput 需要 options.recordToItem');
   }
 
+  const existingManifest = options.existingManifest || null;
+  const touchedDays = options.touchedDays || null;
+  const isPartialWrite = !!(
+    existingManifest
+    && touchedDays
+    && typeof touchedDays.size === 'number'
+    && touchedDays.size > 0
+  );
+  const touchedPartIds = isPartialWrite ? partIdsFromDays(touchedDays) : null;
+
+  if (isPartialWrite) {
+    console.log(
+      '增量写出: 仅更新 ' + touchedPartIds.size + ' 个周分片（'
+      + Array.from(touchedPartIds).sort().join(', ') + '）'
+    );
+  }
+
   const groups = new Map();
   const accountSet = new Set();
   const countrySet = new Set();
@@ -359,20 +491,24 @@ function writeAggMapMonthlyOutput(outDir, platform, aggMap, sourceFiles, options
   let maxDay = '';
 
   for (const rec of aggMap.values()) {
+    const part = weekPartForDay(rec.day);
+    if (touchedPartIds && !touchedPartIds.has(part.id)) continue;
+
     if (rec.accountName) accountSet.add(rec.accountName);
     if (rec.country) countrySet.add(rec.country);
     if (rec.day) {
       if (!minDay || rec.day < minDay) minDay = rec.day;
       if (!maxDay || rec.day > maxDay) maxDay = rec.day;
     }
-    const part = weekPartForDay(rec.day);
     if (!groups.has(part.id)) groups.set(part.id, { part: part, items: [] });
     groups.get(part.id).items.push(recordToItem(rec));
   }
 
   const baseMeta = Object.assign({
     generatedAt: new Date().toISOString(),
-    totalRecords: aggMap.size,
+    totalRecords: isPartialWrite
+      ? Array.from(groups.values()).reduce(function (sum, g) { return sum + g.items.length; }, 0)
+      : aggMap.size,
     platform: platform,
     accounts: Array.from(accountSet).sort(),
     countries: Array.from(countrySet).sort(),
@@ -397,6 +533,9 @@ function writeAggMapMonthlyOutput(outDir, platform, aggMap, sourceFiles, options
     });
   });
 
+  if (isPartialWrite) {
+    return writePartialMonthMapToDisk(outDir, platform, monthMap, sourceFiles, existingManifest);
+  }
   return writeMonthMapToDisk(outDir, platform, monthMap, sourceFiles);
 }
 
@@ -456,4 +595,5 @@ module.exports = {
   expandMonthEntries: expandMonthEntries,
   ensureNodeHeap: ensureNodeHeap,
   isDataChunkRelativePath: isDataChunkRelativePath,
+  partIdsFromDays: partIdsFromDays,
 };

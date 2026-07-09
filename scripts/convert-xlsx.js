@@ -121,7 +121,7 @@ function readXlsx(filePath) {
   return allRows;
 }
 
-function mergeRowsIntoAggMap(rows, aggMap) {
+function mergeRowsIntoAggMap(rows, aggMap, touchedDays) {
   if (!rows.length) return 0;
   const headers = rows[0].map(function (h) { return (h || '').trim(); });
   let merged = 0;
@@ -140,6 +140,8 @@ function mergeRowsIntoAggMap(rows, aggMap) {
     const country = pickField(obj, ['Country', '国家']) || '未知';
     const adName = pickField(obj, ['Ad name', 'Ad Name', 'Ad']);
     if (!day || !adName || !accountName) continue;
+
+    if (touchedDays) touchedDays.add(day);
 
     const creative = parseCreative(adName).creative;
     const key = [day, accountName, country, creative].join('\0');
@@ -260,14 +262,14 @@ function fbAggRecordToItem(r) {
   };
 }
 
-function processExcelFile(filePath, aggMap) {
+function processExcelFile(filePath, aggMap, touchedDays) {
   const rows = readXlsx(filePath);
   const fileName = path.basename(filePath);
   if (!rows.length) {
     console.warn('  警告: ' + fileName + ' 无法读取或为空，已跳过');
     return 0;
   }
-  const count = mergeRowsIntoAggMap(rows, aggMap);
+  const count = mergeRowsIntoAggMap(rows, aggMap, touchedDays);
   console.log('  合并 ' + fileName + ': ' + count + ' 行有效数据');
   return count;
 }
@@ -291,6 +293,8 @@ function main() {
   let filesToProcess;
   let sourceFiles;
   let aggMap;
+  let existingManifest = null;
+  const touchedDays = new Set();
 
   if (forceFull || !existingState || !existingState.manifest) {
     if (!allExcelFiles.length) {
@@ -315,6 +319,7 @@ function main() {
     }
 
     aggMap = existingState.aggMap;
+    existingManifest = existingState.manifest;
     filesToProcess.forEach(function (f) {
       sourceFiles.push(path.basename(f));
     });
@@ -322,12 +327,19 @@ function main() {
   }
 
   console.log('处理 ' + filesToProcess.length + ' 个 Excel 文件:');
-  filesToProcess.forEach(function (f) { processExcelFile(f, aggMap); });
+  const trackTouchedDays = existingManifest ? touchedDays : null;
+  filesToProcess.forEach(function (f) { processExcelFile(f, aggMap, trackTouchedDays); });
+
+  if (trackTouchedDays && trackTouchedDays.size) {
+    console.log('本次涉及日期: ' + Array.from(trackTouchedDays).sort().join(', '));
+  }
 
   console.log('写出 JSON 分片（共 ' + aggMap.size + ' 条）…');
   const manifest = writeAggMapMonthlyOutput(OUT_DIR, 'fb', aggMap, sourceFiles, {
     meta: { optimizers: OPTIMIZERS },
     recordToItem: fbAggRecordToItem,
+    existingManifest: existingManifest,
+    touchedDays: trackTouchedDays,
   });
   const dr = dateRangeFromManifest(manifest);
   console.log('日期范围: ' + dr.min + ' ~ ' + dr.max);

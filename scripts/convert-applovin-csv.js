@@ -98,13 +98,15 @@ function pickField(obj, names) {
   return '';
 }
 
-function mergeRowsIntoAggMap(rows, aggMap) {
+function mergeRowsIntoAggMap(rows, aggMap, touchedDays) {
   let merged = 0;
   for (const obj of rows) {
     const day = normalizeDay(pickField(obj, ['Date', 'Day']));
     const creativeName = pickField(obj, ['Creative set name', 'Creative Set Name']);
     const countryRaw = pickField(obj, ['Country / Region', 'Country']);
     if (!day || !creativeName) continue;
+
+    if (touchedDays) touchedDays.add(day);
 
     const country = parseCountry(countryRaw);
     const creative = parseCreative(creativeName).creative;
@@ -247,6 +249,8 @@ function main() {
   let filesToProcess;
   let sourceFiles;
   let aggMap;
+  let existingManifest = null;
+  const touchedDays = new Set();
 
   if (forceFull || !existingState || !existingState.manifest) {
     if (!allCsvFiles.length) {
@@ -271,6 +275,7 @@ function main() {
     }
 
     aggMap = existingState.aggMap;
+    existingManifest = existingState.manifest;
     filesToProcess.forEach(function (f) {
       sourceFiles.push(path.basename(f));
     });
@@ -278,16 +283,23 @@ function main() {
   }
 
   console.log('处理 ' + filesToProcess.length + ' 个 CSV 文件:');
+  const trackTouchedDays = existingManifest ? touchedDays : null;
   for (const filePath of filesToProcess) {
     const fileName = path.basename(filePath);
     const rows = readCsvRows(filePath).rows;
-    const count = mergeRowsIntoAggMap(rows, aggMap);
+    const count = mergeRowsIntoAggMap(rows, aggMap, trackTouchedDays);
     console.log('  合并 ' + fileName + ': ' + count + ' 行有效数据');
+  }
+
+  if (trackTouchedDays && trackTouchedDays.size) {
+    console.log('本次涉及日期: ' + Array.from(trackTouchedDays).sort().join(', '));
   }
 
   console.log('写出 JSON 分片（共 ' + aggMap.size + ' 条）…');
   const manifest = writeAggMapMonthlyOutput(OUT_DIR, 'applovin', aggMap, sourceFiles, {
     recordToItem: applovinAggRecordToItem,
+    existingManifest: existingManifest,
+    touchedDays: trackTouchedDays,
   });
   const dr = dateRangeFromManifest(manifest);
   console.log('日期范围: ' + dr.min + ' ~ ' + dr.max);
