@@ -1,6 +1,6 @@
 {
   "platform": "fb",
-  "generatedAt": "2026-07-09T01:43:00.576Z",
+  "generatedAt": "2026-07-10T01:30:05.296Z",
   "defaultMonth": "2026-07",
   "chunkDays": 7,
   "sourceFiles": [
@@ -39,7 +39,8 @@
     "Untitled-report_0706.xlsx",
     "Untitled-report_0707.xlsx",
     "Untitled-report_0708.xlsx",
-    "Untitled-report_0709.xlsx"
+    "Untitled-report_0709.xlsx",
+    "Untitled-report_0710.xlsx"
   ],
   "months": [
     {
@@ -101,9 +102,9 @@
       "id": "2026-07",
       "dateRange": {
         "min": "2026-07-01",
-        "max": "2026-07-08"
+        "max": "2026-07-14"
       },
-      "totalRecords": 542757,
+      "totalRecords": 630903,
       "parts": [
         {
           "id": "2026-07/01-07",
@@ -121,7 +122,7 @@
             "min": "2026-07-08",
             "max": "2026-07-14"
           },
-          "totalRecords": 80247
+          "totalRecords": 168393
         }
       ]
     }
