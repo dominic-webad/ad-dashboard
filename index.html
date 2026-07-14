@@ -39,6 +39,7 @@
             </div>
           </div>
           <div class="header-meta">
+            <span v-if="backgroundLoading" class="badge badge-loading">后台同步数据…</span>
             <span class="badge badge-muted">{{ formatDateDisplay(manifestDateRange.min) }} ~ {{ formatDateDisplay(manifestDateRange.max) }}</span>
             <template v-if="isLoggedIn">
               <span class="badge badge-user">{{ authUser ? authUser.displayName : '' }}</span>
@@ -87,19 +88,34 @@
               </select>
             </div>
 
-            <div class="filter-group landing-page-filter">
+            <div class="filter-group multiselect-wrap">
               <label>落地页（可多选）</label>
-              <div class="landing-page-options">
-                <label v-for="lp in landingPageOptions" :key="lp" class="landing-page-option">
-                  <input type="checkbox" :checked="isLandingPageSelected(lp)" @change="toggleLandingPage(lp)" />
-                  <span>{{ lp }}</span>
-                </label>
+              <div class="multiselect" @click.stop="openLandingPageDropdown">
+                <div class="multiselect-display">
+                  <span v-if="isAllLandingPagesSelected" class="placeholder">全部落地页</span>
+                  <span v-else class="selected-count">已选 {{ filters.landingPages.length }} 个落地页</span>
+                </div>
+                <div v-if="landingPageDropdownOpen" class="multiselect-panel" @click.stop>
+                  <div class="multiselect-actions">
+                    <button type="button" @click="selectAllLandingPages">全选</button>
+                    <button type="button" @click="clearLandingPages">清空</button>
+                  </div>
+                  <div class="multiselect-list">
+                    <label v-for="lp in landingPageOptions" :key="lp" class="multiselect-item">
+                      <input type="checkbox" :checked="isLandingPageSelected(lp)" @change="toggleLandingPage(lp)" />
+                      <span>{{ lp }}</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div v-if="!isAllLandingPagesSelected && filters.landingPages.length" class="selected-tags">
+                <span v-for="lp in filters.landingPages" :key="lp" class="tag">{{ lp }}</span>
               </div>
             </div>
 
             <div class="filter-group multiselect-wrap">
               <label>国家（可多选）</label>
-              <div class="multiselect" @click.stop="countryDropdownOpen = !countryDropdownOpen">
+              <div class="multiselect" @click.stop="openCountryDropdown">
                 <div class="multiselect-display">
                   <span v-if="!filters.countries.length" class="placeholder">全部国家</span>
                   <span v-else class="selected-count">已选 {{ filters.countries.length }} 个国家</span>
@@ -236,6 +252,12 @@
 
         <template v-if="canViewFunnel">
         <section class="panel funnel-panel">
+          <div data-defer-module="funnel" class="defer-sentinel" aria-hidden="true"></div>
+          <div v-if="!deferredModules.funnel" class="defer-placeholder">
+            <div class="defer-spinner"></div>
+            <p>转化漏斗分析准备中…</p>
+          </div>
+          <template v-else>
           <div class="panel-header">
             <div>
               <h2>转化漏斗分析</h2>
@@ -435,6 +457,7 @@
               </div>
             </div>
           </div>
+          </template>
         </section>
         </template>
 
@@ -634,6 +657,12 @@
         </section>
 
         <section class="panel lifecycle-panel">
+          <div data-defer-module="lifecycle" class="defer-sentinel" aria-hidden="true"></div>
+          <div v-if="!deferredModules.lifecycle" class="defer-placeholder">
+            <div class="defer-spinner"></div>
+            <p>素材生命周期分析准备中…</p>
+          </div>
+          <template v-else>
           <div class="panel-header lifecycle-panel-header">
             <div>
               <h2>素材生命周期分析</h2>
@@ -823,6 +852,7 @@
               >{{ p }}</button>
             </div>
           </teleport>
+          </template>
         </section>
 
         <div

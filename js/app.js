@@ -85,6 +85,10 @@
       var funnelSortDir = ref('desc');
       var countrySearch = ref('');
       var countryDropdownOpen = ref(false);
+      var landingPageDropdownOpen = ref(false);
+      var backgroundLoading = ref(false);
+      var deferredModules = ref({ funnel: false, lifecycle: false });
+      var deferredObservers = [];
       var LANDING_PAGE_OPTIONS = ['男性', '女性'];
       var detailModal = ref({ show: false, type: 'creative', creative: '', country: '' });
       var detailQueryFilter = ref(null);
@@ -488,12 +492,7 @@
         })).then(finish);
       }
 
-      function collectNeededMonthIds(manifest) {
-        var ranges = [
-          { start: filters.value.dateStart, end: filters.value.dateEnd },
-          { start: compareFilters.value.dateStart, end: compareFilters.value.dateEnd },
-          { start: lifecycleFilters.value.dateStart, end: lifecycleFilters.value.dateEnd },
-        ];
+      function getPartIdsForRanges(ranges, manifest) {
         var idSet = new Set();
         ranges.forEach(function (range) {
           if (range.start && range.end) {
@@ -502,10 +501,100 @@
             });
           }
         });
-        getInitialPartIds(manifest).forEach(function (id) { idSet.add(id); });
         return Array.from(idSet).sort();
       }
 
+      function getBootstrapPartIds(manifest) {
+        var ranges = [
+          { start: filters.value.dateStart, end: filters.value.dateEnd },
+          { start: compareFilters.value.dateStart, end: compareFilters.value.dateEnd },
+        ];
+        var ids = getPartIdsForRanges(ranges, manifest);
+        if (ids.length) return ids;
+        var fallback = getInitialPartIds(manifest);
+        return fallback.length ? [fallback[fallback.length - 1]] : fallback;
+      }
+
+      function getBackgroundPartIds(manifest) {
+        var cache = getPlatformMonthCache(platform.value);
+        return flattenManifestParts(manifest)
+          .map(function (p) { return p.id; })
+          .filter(function (id) { return !cache.months[id]; })
+          .sort();
+      }
+
+      function collectNeededMonthIds(manifest) {
+        var ranges = [
+          { start: filters.value.dateStart, end: filters.value.dateEnd },
+          { start: compareFilters.value.dateStart, end: compareFilters.value.dateEnd },
+          { start: lifecycleFilters.value.dateStart, end: lifecycleFilters.value.dateEnd },
+        ];
+        return getPartIdsForRanges(ranges, manifest);
+      }
+
+      function resetDeferredModules() {
+        deferredModules.value = { funnel: false, lifecycle: false };
+        deferredObservers.forEach(function (observer) { observer.disconnect(); });
+        deferredObservers = [];
+      }
+
+      function setupDeferredModules() {
+        resetDeferredModules();
+        return nextTick().then(function () {
+          function observeModule(key, selector) {
+            var el = document.querySelector(selector);
+            if (!el || typeof IntersectionObserver === 'undefined') {
+              deferredModules.value = Object.assign({}, deferredModules.value, { [key]: true });
+              return;
+            }
+            var observer = new IntersectionObserver(function (entries) {
+              if (!entries.some(function (entry) { return entry.isIntersecting; })) return;
+              deferredModules.value = Object.assign({}, deferredModules.value, { [key]: true });
+              observer.disconnect();
+              if (key === 'funnel' && canViewFunnel.value) {
+                nextTick().then(ensureFunnelChart);
+              }
+            }, { rootMargin: '240px 0px' });
+            observer.observe(el);
+            deferredObservers.push(observer);
+          }
+          observeModule('funnel', '[data-defer-module="funnel"]');
+          observeModule('lifecycle', '[data-defer-module="lifecycle"]');
+        });
+      }
+
+      function backgroundSyncRemainingMonths() {
+        var manifest = manifestCache.value[platform.value];
+        if (!manifest || !store.value) return Promise.resolve();
+        var missing = getBackgroundPartIds(manifest);
+        if (!missing.length) return Promise.resolve();
+        backgroundLoading.value = true;
+
+        function loadBatch(index) {
+          if (index >= missing.length) {
+            backgroundLoading.value = false;
+            return nextTick().then(function () {
+              if (deferredModules.value.funnel && canViewFunnel.value) ensureFunnelChart();
+              if (canViewCore.value) ensureProtectedCharts();
+              syncFunnelColumnWidths();
+            });
+          }
+          var batch = missing.slice(index, index + 2);
+          return fetchAndMergeMonths(platform.value, batch, manifest, false)
+            .then(function () {
+              return new Promise(function (resolve) {
+                if (typeof requestAnimationFrame === 'function') requestAnimationFrame(resolve);
+                else setTimeout(resolve, 0);
+              });
+            })
+            .then(function () { return loadBatch(index + 2); });
+        }
+
+        return loadBatch(0).catch(function (err) {
+          backgroundLoading.value = false;
+          console.error('后台同步数据失败', err);
+        });
+      }
       function syncMonthsForActiveRanges() {
         if (isBootstrapping) return Promise.resolve();
         var manifest = manifestCache.value[platform.value];
@@ -1230,6 +1319,12 @@
         return list;
       });
 
+      var isAllLandingPagesSelected = computed(function () {
+        var lp = filters.value.landingPages;
+        if (!lp || !lp.length) return true;
+        return lp.length === LANDING_PAGE_OPTIONS.length;
+      });
+
       var filteredCountryOptions = computed(function () {
         var q = countrySearch.value.trim().toLowerCase();
         var list = meta.value.countries || [];
@@ -1258,7 +1353,7 @@
       var kpiTrendChart = null;
 
       function initCharts() {
-        if (canViewFunnel.value) ensureFunnelChart();
+        if (canViewFunnel.value && deferredModules.value.funnel) ensureFunnelChart();
         if (canViewCore.value) ensureProtectedCharts();
       }
 
@@ -1356,6 +1451,16 @@
         closeKpiTrendModal();
         closeLoginModal();
         disposeProtectedCharts();
+      }
+
+      function openLandingPageDropdown() {
+        landingPageDropdownOpen.value = !landingPageDropdownOpen.value;
+        countryDropdownOpen.value = false;
+      }
+
+      function openCountryDropdown() {
+        countryDropdownOpen.value = !countryDropdownOpen.value;
+        landingPageDropdownOpen.value = false;
       }
 
       function trendRoasLabel() {
@@ -1625,6 +1730,14 @@
         if (idx >= 0) list.splice(idx, 1);
         else list.push(name);
         filters.value.landingPages = list;
+      }
+
+      function selectAllLandingPages() {
+        filters.value.landingPages = LANDING_PAGE_OPTIONS.slice();
+      }
+
+      function clearLandingPages() {
+        filters.value.landingPages = [];
       }
 
       function isCountrySelected(code) {
@@ -2226,9 +2339,12 @@
         loading.value = false;
         error.value = '';
         nextTick().then(function () {
+          return setupDeferredModules();
+        }).then(function () {
           initCharts();
           syncFunnelColumnWidths();
           prefetchEcharts();
+          backgroundSyncRemainingMonths();
         });
         return true;
       }
@@ -2241,8 +2357,11 @@
         return loadManifest(platform.value)
           .then(function (manifest) {
             if (!manifest.months || !manifest.months.length) throw new Error('无可用数据月份');
-            var initialIds = getInitialMonthIds(manifest);
-            return fetchAndMergeMonths(platform.value, initialIds, manifest, true);
+            isBootstrapping = true;
+            resetFilters();
+            isBootstrapping = false;
+            var bootstrapIds = getBootstrapPartIds(manifest);
+            return fetchAndMergeMonths(platform.value, bootstrapIds, manifest, false);
           });
       }
 
@@ -2250,6 +2369,7 @@
         disposeAllCharts();
         closeCreativeDetail();
         closeKpiTrendModal();
+        resetDeferredModules();
         loading.value = true;
         error.value = '';
         var nextManifest = Object.assign({}, manifestCache.value);
@@ -2262,14 +2382,21 @@
         return loadManifest(platform.value, true)
           .then(function (manifest) {
             if (!manifest.months || !manifest.months.length) throw new Error('无可用数据月份');
-            var initialIds = getInitialMonthIds(manifest);
-            return fetchAndMergeMonths(platform.value, initialIds, manifest, true);
+            isBootstrapping = true;
+            resetFilters();
+            isBootstrapping = false;
+            var bootstrapIds = getBootstrapPartIds(manifest);
+            return fetchAndMergeMonths(platform.value, bootstrapIds, manifest, false);
           })
           .then(function () { return nextTick(); })
+          .then(function () {
+            return setupDeferredModules();
+          })
           .then(function () {
             initCharts();
             syncFunnelColumnWidths();
             prefetchEcharts();
+            backgroundSyncRemainingMonths();
           })
           .catch(function (e) {
             error.value = (e && e.message) || '数据加载失败';
@@ -2312,7 +2439,11 @@
           .then(function () { return nextTick(); })
           .then(function () {
             initTagsForPlatform(platform.value);
+            return setupDeferredModules();
+          })
+          .then(function () {
             initCharts();
+            backgroundSyncRemainingMonths();
             window.addEventListener('resize', function () {
               if (trendChart) trendChart.resize();
               if (funnelChart) funnelChart.resize();
@@ -2321,6 +2452,7 @@
               syncFunnelColumnWidths();
             });
             document.addEventListener('click', function (evt) {
+              landingPageDropdownOpen.value = false;
               countryDropdownOpen.value = false;
               if (!evt.target.closest('.lifecycle-tag-cell') && !evt.target.closest('.lifecycle-tag-picker-fixed')) {
                 closeTagPicker();
@@ -2333,6 +2465,10 @@
             error.value = (e && e.message) || ('数据加载失败，请先运行 ' + platformConfig.value.convertHint + ' 生成数据');
             loading.value = false;
           });
+      });
+
+      watch(function () { return deferredModules.value.funnel; }, function (enabled) {
+        if (enabled && canViewFunnel.value) nextTick().then(ensureFunnelChart);
       });
 
       watch([filters, granularity, authUser, platform], function () {
@@ -2406,6 +2542,8 @@
 
       return {
         loading: loading,
+        backgroundLoading: backgroundLoading,
+        deferredModules: deferredModules,
         error: error,
         platform: platform,
         platformConfig: platformConfig,
@@ -2460,7 +2598,9 @@
         funnelSortIcon: funnelSortIcon,
         countrySearch: countrySearch,
         countryDropdownOpen: countryDropdownOpen,
+        landingPageDropdownOpen: landingPageDropdownOpen,
         landingPageOptions: LANDING_PAGE_OPTIONS,
+        isAllLandingPagesSelected: isAllLandingPagesSelected,
         detailModal: detailModal,
         kpiTrendModal: kpiTrendModal,
         authUser: authUser,
@@ -2517,6 +2657,10 @@
         lifecycleFilter: lifecycleFilter,
         isLandingPageSelected: isLandingPageSelected,
         toggleLandingPage: toggleLandingPage,
+        selectAllLandingPages: selectAllLandingPages,
+        clearLandingPages: clearLandingPages,
+        openLandingPageDropdown: openLandingPageDropdown,
+        openCountryDropdown: openCountryDropdown,
         isCountrySelected: isCountrySelected,
         toggleCountry: toggleCountry,
         selectVisibleCountries: selectVisibleCountries,
