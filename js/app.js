@@ -83,10 +83,9 @@
       var funnelCountry = ref('');
       var funnelSortKey = ref('spend');
       var funnelSortDir = ref('desc');
-      var accountSearch = ref('');
       var countrySearch = ref('');
-      var accountDropdownOpen = ref(false);
       var countryDropdownOpen = ref(false);
+      var LANDING_PAGE_OPTIONS = ['男性', '女性'];
       var detailModal = ref({ show: false, type: 'creative', creative: '', country: '' });
       var detailQueryFilter = ref(null);
       var kpiTrendModal = ref({ show: false, label: '', metricKey: '', kind: 'kpi', accent: '#60a5fa' });
@@ -100,7 +99,7 @@
         dateStart: '',
         dateEnd: '',
         optimizer: '',
-        accounts: [],
+        landingPages: LANDING_PAGE_OPTIONS.slice(),
         countries: [],
       });
 
@@ -550,9 +549,31 @@
           });
       }
 
+      function isMaleAccount(accountName) {
+        if (!accountName) return false;
+        return /male$/i.test(String(accountName).trim());
+      }
+
+      function getSelectedLandingPages() {
+        var lp = filters.value.landingPages;
+        if (!lp || !lp.length) return LANDING_PAGE_OPTIONS.slice();
+        return lp;
+      }
+
+      function resolveLandingPageAccounts() {
+        var selected = getSelectedLandingPages();
+        if (selected.length !== 1) return [];
+        var allAccounts = meta.value.accounts || [];
+        var wantMale = selected[0] === '男性';
+        var matched = allAccounts.filter(function (a) {
+          return wantMale ? isMaleAccount(a) : !isMaleAccount(a);
+        });
+        return matched.length ? matched : ['\0__NO_ACCOUNT__'];
+      }
+
       function dimFilter() {
         var base = {
-          accounts: filters.value.accounts,
+          accounts: resolveLandingPageAccounts(),
           countries: filters.value.countries,
         };
         if (platformConfig.value.filters.showOptimizer) {
@@ -592,7 +613,7 @@
           dateEnd: dateEnd || '',
           optimizer: '',
           optimizers: [],
-          accounts: [],
+          accounts: resolveLandingPageAccounts(),
           countries: [],
         };
       }
@@ -649,7 +670,9 @@
       function buildDetailTrendFilter(extraDims) {
         var endDay = getYesterdayIso();
         var dayList = U.buildLastNDays(endDay, DETAIL_TREND_DAYS);
-        return Object.assign({}, extraDims || {}, {
+        return Object.assign({
+          accounts: resolveLandingPageAccounts(),
+        }, extraDims || {}, {
           dateStart: dayList[0],
           dateEnd: endDay,
         });
@@ -1066,15 +1089,14 @@
       });
 
       var potentialResult = computed(function () {
-        if (!store.value || !store.value.creativeDayMap) {
+        if (!store.value || !store.value.findRisingCreatives) {
           return { windowDays: headCreativeWindow.value, items: [] };
         }
-        var minRoas = platformConfig.value.headCreative.minRoas;
-        return store.value.findRisingFromBundle(
-          store.value.creativeDayMap,
+        getSelectedLandingPages();
+        return store.value.findRisingCreatives(
+          materialFilter(),
           latestDay.value,
-          headCreativeWindow.value,
-          minRoas
+          headCreativeWindow.value
         );
       });
 
@@ -1208,13 +1230,6 @@
         return list;
       });
 
-      var filteredAccountOptions = computed(function () {
-        var q = accountSearch.value.trim().toLowerCase();
-        var list = meta.value.accounts || [];
-        if (!q) return list;
-        return list.filter(function (a) { return a.toLowerCase().indexOf(q) >= 0; });
-      });
-
       var filteredCountryOptions = computed(function () {
         var q = countrySearch.value.trim().toLowerCase();
         var list = meta.value.countries || [];
@@ -1337,17 +1352,10 @@
         if (window.AdAuth) window.AdAuth.logout();
         authUser.value = null;
         filters.value.optimizer = '';
-        filters.value.accounts = [];
-        accountDropdownOpen.value = false;
+        filters.value.landingPages = LANDING_PAGE_OPTIONS.slice();
         closeKpiTrendModal();
         closeLoginModal();
         disposeProtectedCharts();
-      }
-
-      function openAccountDropdown() {
-        if (!isLoggedIn.value) return;
-        accountDropdownOpen.value = !accountDropdownOpen.value;
-        countryDropdownOpen.value = false;
       }
 
       function trendRoasLabel() {
@@ -1607,21 +1615,20 @@
         return item.totalSpend7d != null ? item.totalSpend7d : item.totalSpend;
       }
 
-      function isAccountSelected(name) {
-        return filters.value.accounts.indexOf(name) >= 0;
+      function isLandingPageSelected(name) {
+        return getSelectedLandingPages().indexOf(name) >= 0;
+      }
+
+      function toggleLandingPage(name) {
+        var list = getSelectedLandingPages().slice();
+        var idx = list.indexOf(name);
+        if (idx >= 0) list.splice(idx, 1);
+        else list.push(name);
+        filters.value.landingPages = list;
       }
 
       function isCountrySelected(code) {
         return filters.value.countries.indexOf(code) >= 0;
-      }
-
-      function toggleAccount(name) {
-        if (!isLoggedIn.value) return;
-        var list = filters.value.accounts.slice();
-        var idx = list.indexOf(name);
-        if (idx >= 0) list.splice(idx, 1);
-        else list.push(name);
-        filters.value.accounts = list;
       }
 
       function toggleCountry(code) {
@@ -1632,22 +1639,10 @@
         filters.value.countries = list;
       }
 
-      function selectVisibleAccounts() {
-        if (!isLoggedIn.value) return;
-        var set = new Set(filters.value.accounts);
-        filteredAccountOptions.value.forEach(function (a) { set.add(a); });
-        filters.value.accounts = Array.from(set);
-      }
-
       function selectVisibleCountries() {
         var set = new Set(filters.value.countries);
         filteredCountryOptions.value.forEach(function (c) { set.add(c); });
         filters.value.countries = Array.from(set);
-      }
-
-      function clearAccounts() {
-        if (!isLoggedIn.value) return;
-        filters.value.accounts = [];
       }
 
       function clearCountries() {
@@ -1828,7 +1823,7 @@
           dateStart: defaultRange.start,
           dateEnd: defaultRange.end,
           optimizer: '',
-          accounts: [],
+          landingPages: LANDING_PAGE_OPTIONS.slice(),
           countries: [],
         };
         compareFilters.value = { dateStart: defaultRange.start, dateEnd: defaultRange.end };
@@ -1837,7 +1832,6 @@
         funnelCountry.value = '';
         funnelSortKey.value = 'spend';
         funnelSortDir.value = 'desc';
-        accountSearch.value = '';
         countrySearch.value = '';
         lifecycleSearch.value = '';
         lifecycleTagSearch.value = '';
@@ -2199,6 +2193,10 @@
         var snap = platformUiCache[platformId];
         if (!snap) return;
         filters.value = snap.filters;
+        if (!filters.value.landingPages || !filters.value.landingPages.length) {
+          filters.value.landingPages = LANDING_PAGE_OPTIONS.slice();
+        }
+        delete filters.value.accounts;
         compareFilters.value = snap.compareFilters;
         lifecycleFilters.value = snap.lifecycleFilters;
         datePresetMain.value = snap.datePresetMain;
@@ -2323,7 +2321,6 @@
               syncFunnelColumnWidths();
             });
             document.addEventListener('click', function (evt) {
-              accountDropdownOpen.value = false;
               countryDropdownOpen.value = false;
               if (!evt.target.closest('.lifecycle-tag-cell') && !evt.target.closest('.lifecycle-tag-picker-fixed')) {
                 closeTagPicker();
@@ -2461,10 +2458,9 @@
         sortedFunnelTable: sortedFunnelTable,
         sortFunnelColumn: sortFunnelColumn,
         funnelSortIcon: funnelSortIcon,
-        accountSearch: accountSearch,
         countrySearch: countrySearch,
-        accountDropdownOpen: accountDropdownOpen,
         countryDropdownOpen: countryDropdownOpen,
+        landingPageOptions: LANDING_PAGE_OPTIONS,
         detailModal: detailModal,
         kpiTrendModal: kpiTrendModal,
         authUser: authUser,
@@ -2491,7 +2487,6 @@
         countryTiers: countryTiers,
         countryExpanded: countryExpanded,
         activeFunnel: activeFunnel,
-        filteredAccountOptions: filteredAccountOptions,
         filteredCountryOptions: filteredCountryOptions,
         formatCurrency: U.formatCurrency,
         formatCurrencyExact: U.formatCurrencyExact,
@@ -2520,14 +2515,11 @@
         compareFilter: compareFilter,
         globalFilter: globalFilter,
         lifecycleFilter: lifecycleFilter,
-        isAccountSelected: isAccountSelected,
+        isLandingPageSelected: isLandingPageSelected,
+        toggleLandingPage: toggleLandingPage,
         isCountrySelected: isCountrySelected,
-        toggleAccount: toggleAccount,
-        openAccountDropdown: openAccountDropdown,
         toggleCountry: toggleCountry,
-        selectVisibleAccounts: selectVisibleAccounts,
         selectVisibleCountries: selectVisibleCountries,
-        clearAccounts: clearAccounts,
         clearCountries: clearCountries,
       };
     },

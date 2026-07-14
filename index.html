@@ -87,41 +87,19 @@
               </select>
             </div>
 
-            <div class="filter-group multiselect-wrap" :class="{ 'is-disabled': !isLoggedIn }">
-              <label>{{ platformConfig.filters.accountLabel }}（可多选）</label>
-              <div
-                class="multiselect"
-                :class="{ 'is-disabled': !isLoggedIn }"
-                :title="isLoggedIn ? '' : '登录后可筛选账号'"
-                @click.stop="openAccountDropdown"
-              >
-                <div class="multiselect-display">
-                  <span v-if="!filters.accounts.length" class="placeholder">{{ platformConfig.filters.accountPlaceholder }}</span>
-                  <span v-else class="selected-count">已选 {{ filters.accounts.length }} 个{{ isApplovin ? ' Set' : '账号' }}</span>
-                </div>
-                <div v-if="accountDropdownOpen" class="multiselect-panel" @click.stop>
-                  <input class="multiselect-search" v-model="accountSearch" placeholder="搜索账号…" />
-                  <div class="multiselect-actions">
-                    <button type="button" @click="selectVisibleAccounts">全选当前</button>
-                    <button type="button" @click="clearAccounts">清空</button>
-                  </div>
-                  <div class="multiselect-list">
-                    <label v-for="a in filteredAccountOptions" :key="a" class="multiselect-item">
-                      <input type="checkbox" :checked="isAccountSelected(a)" @change="toggleAccount(a)" />
-                      <span>{{ a }}</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <div v-if="filters.accounts.length" class="selected-tags">
-                <span v-for="a in filters.accounts.slice(0, 3)" :key="a" class="tag">{{ a }}</span>
-                <span v-if="filters.accounts.length > 3" class="tag tag-more">+{{ filters.accounts.length - 3 }}</span>
+            <div class="filter-group landing-page-filter">
+              <label>落地页（可多选）</label>
+              <div class="landing-page-options">
+                <label v-for="lp in landingPageOptions" :key="lp" class="landing-page-option">
+                  <input type="checkbox" :checked="isLandingPageSelected(lp)" @change="toggleLandingPage(lp)" />
+                  <span>{{ lp }}</span>
+                </label>
               </div>
             </div>
 
             <div class="filter-group multiselect-wrap">
               <label>国家（可多选）</label>
-              <div class="multiselect" @click.stop="countryDropdownOpen = !countryDropdownOpen; accountDropdownOpen = false">
+              <div class="multiselect" @click.stop="countryDropdownOpen = !countryDropdownOpen">
                 <div class="multiselect-display">
                   <span v-if="!filters.countries.length" class="placeholder">全部国家</span>
                   <span v-else class="selected-count">已选 {{ filters.countries.length }} 个国家</span>
