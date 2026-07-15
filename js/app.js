@@ -536,6 +536,7 @@
         deferredModules.value = { funnel: false, lifecycle: false };
         deferredObservers.forEach(function (observer) { observer.disconnect(); });
         deferredObservers = [];
+        unbindFunnelScrollSync();
       }
 
       function setupDeferredModules() {
@@ -551,9 +552,6 @@
               if (!entries.some(function (entry) { return entry.isIntersecting; })) return;
               deferredModules.value = Object.assign({}, deferredModules.value, { [key]: true });
               observer.disconnect();
-              if (key === 'funnel' && canViewFunnel.value) {
-                nextTick().then(ensureFunnelChart);
-              }
             }, { rootMargin: '240px 0px' });
             observer.observe(el);
             deferredObservers.push(observer);
@@ -1395,6 +1393,7 @@
       }
 
       function disposeFunnelChart() {
+        unbindFunnelScrollSync();
         if (funnelChart) {
           funnelChart.dispose();
           funnelChart = null;
@@ -1859,20 +1858,30 @@
         }
       }
 
-      var funnelScrollSyncBound = false;
+      var funnelScrollBody = null;
 
       function syncFunnelFooterOffset() {
-        var bodyScroll = document.querySelector('.funnel-table-body-scroll');
+        var bodyScroll = funnelScrollBody || document.querySelector('.funnel-table-body-scroll');
         var footerInner = document.querySelector('.funnel-table-footer-inner');
         if (!bodyScroll || !footerInner) return;
         footerInner.style.transform = 'translateX(-' + bodyScroll.scrollLeft + 'px)';
       }
 
+      function unbindFunnelScrollSync() {
+        if (!funnelScrollBody) return;
+        funnelScrollBody.removeEventListener('scroll', syncFunnelFooterOffset);
+        funnelScrollBody = null;
+      }
+
       function bindFunnelScrollSync() {
-        if (funnelScrollSyncBound) return;
         var bodyScroll = document.querySelector('.funnel-table-body-scroll');
         if (!bodyScroll) return;
-        funnelScrollSyncBound = true;
+        if (funnelScrollBody === bodyScroll) {
+          syncFunnelFooterOffset();
+          return;
+        }
+        unbindFunnelScrollSync();
+        funnelScrollBody = bodyScroll;
         bodyScroll.addEventListener('scroll', syncFunnelFooterOffset);
         syncFunnelFooterOffset();
       }
@@ -2468,7 +2477,11 @@
       });
 
       watch(function () { return deferredModules.value.funnel; }, function (enabled) {
-        if (enabled && canViewFunnel.value) nextTick().then(ensureFunnelChart);
+        if (!enabled || !canViewFunnel.value) return;
+        nextTick().then(function () {
+          syncFunnelColumnWidths();
+          ensureFunnelChart();
+        });
       });
 
       watch([filters, granularity, authUser, platform], function () {
