@@ -299,6 +299,20 @@ function writeChunkFile(outDir, chunk) {
   return relativeFile;
 }
 
+function manifestPartFromChunk(chunk, file) {
+  const actual = chunk.data && chunk.data.meta && chunk.data.meta.dateRange;
+  const fallback = chunk.part.dateRange || {};
+  return {
+    id: chunk.part.id,
+    file: file || chunk.part.file,
+    dateRange: {
+      min: (actual && actual.min) || fallback.min || '',
+      max: (actual && actual.max) || fallback.max || '',
+    },
+    totalRecords: chunk.data.meta.totalRecords,
+  };
+}
+
 function summarizeMonthParts(parts) {
   let monthRecords = 0;
   let monthMin = '';
@@ -331,12 +345,7 @@ function writePartialMonthMapToDisk(outDir, platform, touchedMonthMap, sourceFil
       const chunk = touchedByFile.get(existingPart.file);
       if (chunk) {
         writeChunkFile(outDir, chunk);
-        manifestParts.push({
-          id: chunk.part.id,
-          file: existingPart.file,
-          dateRange: chunk.part.dateRange,
-          totalRecords: chunk.data.meta.totalRecords,
-        });
+        manifestParts.push(manifestPartFromChunk(chunk, existingPart.file));
         touchedByFile.delete(existingPart.file);
       } else {
         manifestParts.push(existingPart);
@@ -365,24 +374,37 @@ function writePartialMonthMapToDisk(outDir, platform, touchedMonthMap, sourceFil
       const manifestParts = [];
       newMonths.get(monthId).forEach(function (chunk) {
         writeChunkFile(outDir, chunk);
-        manifestParts.push({
-          id: chunk.part.id,
-          file: chunk.part.file,
-          dateRange: chunk.part.dateRange,
-          totalRecords: chunk.data.meta.totalRecords,
-        });
+        manifestParts.push(manifestPartFromChunk(chunk));
         touchedByFile.delete(chunk.part.file);
       });
       manifestParts.sort(function (a, b) {
         return (a.dateRange.min || '').localeCompare(b.dateRange.min || '');
       });
-      const summary = summarizeMonthParts(manifestParts);
-      months.push({
-        id: monthId,
-        dateRange: summary.dateRange,
-        totalRecords: summary.totalRecords,
-        parts: manifestParts,
-      });
+
+      const existingMonth = months.find(function (m) { return m.id === monthId; });
+      if (existingMonth) {
+        const knownFiles = new Set((existingMonth.parts || []).map(function (p) { return p.file; }));
+        manifestParts.forEach(function (part) {
+          if (!knownFiles.has(part.file)) {
+            existingMonth.parts.push(part);
+            knownFiles.add(part.file);
+          }
+        });
+        existingMonth.parts.sort(function (a, b) {
+          return (a.dateRange.min || '').localeCompare(b.dateRange.min || '');
+        });
+        const summary = summarizeMonthParts(existingMonth.parts);
+        existingMonth.dateRange = summary.dateRange;
+        existingMonth.totalRecords = summary.totalRecords;
+      } else {
+        const summary = summarizeMonthParts(manifestParts);
+        months.push({
+          id: monthId,
+          dateRange: summary.dateRange,
+          totalRecords: summary.totalRecords,
+          parts: manifestParts,
+        });
+      }
     });
     months.sort(function (a, b) { return a.id.localeCompare(b.id); });
   }
@@ -422,12 +444,7 @@ function writeMonthMapToDisk(outDir, platform, monthMap, sourceFiles, sourceFile
     parts.forEach(function (chunk) {
       const relativeFile = writeChunkFile(outDir, chunk);
       keepFiles.push(relativeFile);
-      manifestParts.push({
-        id: chunk.part.id,
-        file: relativeFile,
-        dateRange: chunk.part.dateRange,
-        totalRecords: chunk.data.meta.totalRecords,
-      });
+      manifestParts.push(manifestPartFromChunk(chunk, relativeFile));
     });
 
     const summary = summarizeMonthParts(manifestParts);

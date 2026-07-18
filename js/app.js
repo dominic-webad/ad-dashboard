@@ -168,9 +168,12 @@
         var min = '';
         var max = '';
         manifest.months.forEach(function (m) {
-          var dr = m.dateRange || {};
-          if (dr.min && (!min || dr.min < min)) min = dr.min;
-          if (dr.max && (!max || dr.max > max)) max = dr.max;
+          var parts = m.parts && m.parts.length ? m.parts : [m];
+          parts.forEach(function (part) {
+            var dr = part.dateRange || m.dateRange || {};
+            if (dr.min && (!min || dr.min < min)) min = dr.min;
+            if (dr.max && (!max || dr.max > max)) max = dr.max;
+          });
         });
         return { min: min, max: max };
       });
