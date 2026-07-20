@@ -87,9 +87,12 @@
       var countryDropdownOpen = ref(false);
       var landingPageDropdownOpen = ref(false);
       var backgroundLoading = ref(false);
+      var dataUpdateAvailable = ref(false);
       var deferredModules = ref({ funnel: false, lifecycle: false });
       var deferredObservers = [];
       var LANDING_PAGE_OPTIONS = ['男性', '女性'];
+      var DEFAULT_LANDING_PAGES = ['女性'];
+      var DEFAULT_LANDING_PAGES = ['女性'];
       var detailModal = ref({ show: false, type: 'creative', creative: '', country: '' });
       var detailQueryFilter = ref(null);
       var kpiTrendModal = ref({ show: false, label: '', metricKey: '', kind: 'kpi', accent: '#60a5fa' });
@@ -103,7 +106,7 @@
         dateStart: '',
         dateEnd: '',
         optimizer: '',
-        landingPages: LANDING_PAGE_OPTIONS.slice(),
+        landingPages: DEFAULT_LANDING_PAGES.slice(),
         countries: [],
       });
 
@@ -292,7 +295,8 @@
         try {
           prev = localStorage.getItem('ad_dashboard_' + platformId + '_version') || '';
         } catch (e) { /* ignore */ }
-        if (prev && prev !== generatedAt) {
+        var prevMemory = manifestCache.value[platformId] && manifestCache.value[platformId].generatedAt;
+        if ((prev && prev !== generatedAt) || (prevMemory && prevMemory !== generatedAt)) {
           var nextMonthCache = Object.assign({}, platformMonthCache.value);
           delete nextMonthCache[platformId];
           platformMonthCache.value = nextMonthCache;
@@ -304,6 +308,35 @@
             store.value = null;
           }
         }
+      }
+
+      function getKnownManifestVersion(platformId) {
+        if (manifestCache.value[platformId] && manifestCache.value[platformId].generatedAt) {
+          return manifestCache.value[platformId].generatedAt;
+        }
+        try {
+          return localStorage.getItem('ad_dashboard_' + platformId + '_version') || '';
+        } catch (e) {
+          return '';
+        }
+      }
+
+      function checkManifestUpdate() {
+        if (loading.value || document.visibilityState !== 'visible') return Promise.resolve();
+        var platformId = platform.value;
+        var knownVersion = getKnownManifestVersion(platformId);
+        return fetch(getManifestUrl(platformId), { cache: 'no-store' })
+          .then(function (res) {
+            if (!res.ok) return null;
+            return res.json();
+          })
+          .then(function (manifest) {
+            if (!manifest || !manifest.generatedAt) return;
+            if (knownVersion && manifest.generatedAt !== knownVersion) {
+              dataUpdateAvailable.value = true;
+            }
+          })
+          .catch(function () { /* ignore */ });
       }
 
       function getMergedKey(platformId) {
@@ -538,12 +571,13 @@
         return Array.from(idSet).sort();
       }
 
+      function getPartIdsForPreset(manifest, preset) {
+        var range = resolveDatePreset(preset);
+        return getPartIdsForRanges([{ start: range.start, end: range.end }], manifest);
+      }
+
       function getBootstrapPartIds(manifest) {
-        var ranges = [
-          { start: filters.value.dateStart, end: filters.value.dateEnd },
-          { start: compareFilters.value.dateStart, end: compareFilters.value.dateEnd },
-        ];
-        var ids = getPartIdsForRanges(ranges, manifest);
+        var ids = getPartIdsForPreset(manifest, 'last7');
         if (ids.length) return ids;
         var fallback = getInitialPartIds(manifest);
         return fallback.length ? [fallback[fallback.length - 1]] : fallback;
@@ -551,10 +585,8 @@
 
       function getBackgroundPartIds(manifest) {
         var cache = getPlatformMonthCache(platform.value);
-        return flattenManifestParts(manifest)
-          .map(function (p) { return p.id; })
-          .filter(function (id) { return !cache.months[id]; })
-          .sort();
+        var recentIds = getPartIdsForPreset(manifest, 'last14');
+        return recentIds.filter(function (id) { return !cache.months[id]; });
       }
 
       function collectNeededMonthIds(manifest) {
@@ -1481,7 +1513,7 @@
         if (window.AdAuth) window.AdAuth.logout();
         authUser.value = null;
         filters.value.optimizer = '';
-        filters.value.landingPages = LANDING_PAGE_OPTIONS.slice();
+        filters.value.landingPages = DEFAULT_LANDING_PAGES.slice();
         closeKpiTrendModal();
         closeLoginModal();
         disposeProtectedCharts();
@@ -1980,7 +2012,7 @@
           dateStart: defaultRange.start,
           dateEnd: defaultRange.end,
           optimizer: '',
-          landingPages: LANDING_PAGE_OPTIONS.slice(),
+          landingPages: DEFAULT_LANDING_PAGES.slice(),
           countries: [],
         };
         compareFilters.value = { dateStart: defaultRange.start, dateEnd: defaultRange.end };
@@ -2351,7 +2383,7 @@
         if (!snap) return;
         filters.value = snap.filters;
         if (!filters.value.landingPages || !filters.value.landingPages.length) {
-          filters.value.landingPages = LANDING_PAGE_OPTIONS.slice();
+          filters.value.landingPages = DEFAULT_LANDING_PAGES.slice();
         }
         delete filters.value.accounts;
         compareFilters.value = snap.compareFilters;
@@ -2410,6 +2442,7 @@
       }
 
       function reloadDashboardData() {
+        dataUpdateAvailable.value = false;
         disposeAllCharts();
         closeCreativeDetail();
         closeKpiTrendModal();
@@ -2502,6 +2535,11 @@
                 closeTagPicker();
               }
             });
+            document.addEventListener('visibilitychange', function () {
+              if (document.visibilityState === 'visible') {
+                checkManifestUpdate();
+              }
+            });
             setupColumnSelection();
             prefetchEcharts();
           })
@@ -2591,6 +2629,8 @@
       return {
         loading: loading,
         backgroundLoading: backgroundLoading,
+        dataUpdateAvailable: dataUpdateAvailable,
+        reloadDashboardData: reloadDashboardData,
         deferredModules: deferredModules,
         error: error,
         platform: platform,

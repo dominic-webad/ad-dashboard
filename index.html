@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>投放效果分析看板</title>
-  <link rel="stylesheet" href="./css/style.css?v=20260720-1" />
+  <link rel="stylesheet" href="./css/style.css?v=20260720-2" />
 </head>
 <body>
   <div id="app">
@@ -38,6 +38,12 @@
             </div>
           </div>
           <div class="header-meta">
+            <button
+              v-if="dataUpdateAvailable"
+              type="button"
+              class="badge badge-update"
+              @click="reloadDashboardData"
+            >有新数据，点击刷新</button>
             <span v-if="backgroundLoading" class="badge badge-loading">后台同步数据…</span>
             <span class="badge badge-muted">{{ formatDateDisplay(manifestDateRange.min) }} ~ {{ formatDateDisplay(manifestDateRange.max) }}</span>
             <template v-if="isLoggedIn">
@@ -919,7 +925,7 @@
 
   <script>
     (function () {
-      var BUILD = '20260720-1';
+      var BUILD = '20260720-2';
       var appEl = document.getElementById('app');
 
       function showBootError(message) {
