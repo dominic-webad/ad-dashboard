@@ -1,6 +1,6 @@
 {
   "platform": "applovin",
-  "generatedAt": "2026-07-18T11:14:07.087Z",
+  "generatedAt": "2026-07-20T01:43:05.487Z",
   "defaultMonth": "2026-07",
   "chunkDays": 7,
   "sourceFiles": [
@@ -50,7 +50,9 @@
     "report_2026-07-15_09_13_23_6313.csv",
     "report_2026-07-16_09_34_10_7807.csv",
     "report_2026-07-17_12_32_50_840.csv",
-    "report_2026-07-18_19_03_46_411.csv"
+    "report_2026-07-18_19_03_46_411.csv",
+    "report_2026-07-20_09_17_36_5839.csv",
+    "report_2026-07-20_09_17_47_4746.csv"
   ],
   "months": [
     {
@@ -112,9 +114,9 @@
       "id": "2026-07",
       "dateRange": {
         "min": "2026-07-01",
-        "max": "2026-07-17"
+        "max": "2026-07-19"
       },
-      "totalRecords": 287825,
+      "totalRecords": 314559,
       "parts": [
         {
           "id": "2026-07/01-07",
@@ -139,9 +141,9 @@
           "file": "2026-07/15-21.json",
           "dateRange": {
             "min": "2026-07-15",
-            "max": "2026-07-17"
+            "max": "2026-07-19"
           },
-          "totalRecords": 30761
+          "totalRecords": 57495
         }
       ]
     }
