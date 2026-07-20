@@ -251,17 +251,27 @@
         return parts;
       }
 
+      function getDataVersion(platformId) {
+        var manifest = manifestCache.value[platformId];
+        if (manifest && manifest.generatedAt) return manifest.generatedAt;
+        try {
+          return localStorage.getItem('ad_dashboard_' + platformId + '_version') || '';
+        } catch (e) {
+          return '';
+        }
+      }
+
       function getDataUrl(platformId, partId) {
         var manifest = manifestCache.value[platformId];
         var file = partId + '.json';
         var parts = flattenManifestParts(manifest);
         var entry = parts.find(function (p) { return p.id === partId; });
         if (entry && entry.file) file = entry.file;
-        try {
-          var version = localStorage.getItem('ad_dashboard_' + platformId + '_' + partId);
-          if (version) return './public/' + platformId + '/' + file + '?v=' + encodeURIComponent(version);
-        } catch (e) { /* ignore */ }
-        return './public/' + platformId + '/' + file;
+        var version = getDataVersion(platformId);
+        if (version) {
+          return './public/' + platformId + '/' + file + '?v=' + encodeURIComponent(version);
+        }
+        return './public/' + platformId + '/' + file + '?t=' + Date.now();
       }
 
       function rememberDataVersion(platformId, manifest) {
@@ -273,6 +283,27 @@
             localStorage.setItem('ad_dashboard_' + platformId + '_' + p.id, generatedAt);
           });
         } catch (e) { /* ignore */ }
+      }
+
+      function invalidatePlatformDataIfStale(platformId, manifest) {
+        var generatedAt = manifest && manifest.generatedAt;
+        if (!generatedAt) return;
+        var prev = '';
+        try {
+          prev = localStorage.getItem('ad_dashboard_' + platformId + '_version') || '';
+        } catch (e) { /* ignore */ }
+        if (prev && prev !== generatedAt) {
+          var nextMonthCache = Object.assign({}, platformMonthCache.value);
+          delete nextMonthCache[platformId];
+          platformMonthCache.value = nextMonthCache;
+          var nextStoreCache = Object.assign({}, platformStoreCache.value);
+          delete nextStoreCache[platformId];
+          platformStoreCache.value = nextStoreCache;
+          delete mergedKeyByPlatform[platformId];
+          if (platform.value === platformId) {
+            store.value = null;
+          }
+        }
       }
 
       function getMergedKey(platformId) {
@@ -430,7 +461,7 @@
       }
 
       function fetchMonthJson(platformId, partId) {
-        return fetch(getDataUrl(platformId, partId)).then(function (res) {
+        return fetch(getDataUrl(platformId, partId), { cache: 'no-store' }).then(function (res) {
           if (!res.ok) throw new Error('无法加载 ' + partId + ' 数据');
           return res.json();
         });
@@ -631,6 +662,7 @@
             return res.json();
           })
           .then(function (manifest) {
+            invalidatePlatformDataIfStale(platformId, manifest);
             var next = Object.assign({}, manifestCache.value);
             next[platformId] = manifest;
             manifestCache.value = next;
