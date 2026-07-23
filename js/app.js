@@ -902,8 +902,8 @@
           { label: 'ROAS', metricKey: 'roas', value: U.formatNumber(s.roas, 2), sub: '广告支出回报率', accent: '#60a5fa', icon: '📈' },
           { label: '消耗', metricKey: 'spend', value: U.formatCurrencyExact(s.spend), sub: U.formatNumber(s.impressions, 0) + ' 展示', accent: '#f472b6', icon: '💰' },
           { label: '转化量', metricKey: 'purchases', value: U.formatNumber(s.purchases, 0), sub: '购买次数', accent: '#34d399', icon: '🎯' },
+          { label: 'Revenue', metricKey: 'conversionValue', value: U.formatCurrencyExact(s.conversionValue), sub: '转化收入', accent: '#a78bfa', icon: '💎' },
           { label: '转化成本', metricKey: 'cpa', value: U.formatCurrency(s.cpa), sub: 'CPA', accent: '#fbbf24', icon: '💵' },
-          { label: 'CTR', metricKey: 'ctr', value: U.formatPercent(s.ctr), sub: '点击率', accent: '#a78bfa', icon: '👆' },
           { label: 'CPC', metricKey: 'cpc', value: U.formatCurrency(s.cpc), sub: '单次点击成本', accent: '#38bdf8', icon: '🔗' },
           { label: 'CPM', metricKey: 'cpm', value: U.formatCurrency(s.cpm), sub: '千次展示成本', accent: '#fb923c', icon: '📊' },
         ];
@@ -2263,7 +2263,7 @@
       }
 
       function formatKpiTrendTooltip(value, metricKey) {
-        if (metricKey === 'spend' || metricKey === 'cpa' || metricKey === 'cpc' || metricKey === 'cpm') {
+        if (metricKey === 'spend' || metricKey === 'cpa' || metricKey === 'cpc' || metricKey === 'cpm' || metricKey === 'conversionValue') {
           return U.formatCurrency(value);
         }
         if (metricKey === 'ctr') return U.formatPercent(value);
