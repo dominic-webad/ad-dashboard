@@ -9,6 +9,7 @@
     angie: { username: 'angie', role: 'optimizer', optimizer: 'Angie', displayName: 'Angie' },
     dom: { username: 'dom', role: 'optimizer', optimizer: 'Dom', displayName: 'Dom' },
     yuly: { username: 'yuly', role: 'optimizer', optimizer: 'Yuly', displayName: 'Yuly' },
+    cynthia: { username: 'cynthia', role: 'optimizer', optimizer: 'Cynthia', displayName: 'Cynthia' },
   };
 
   function login(username, password) {

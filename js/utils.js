@@ -1,5 +1,5 @@
 (function (global) {
-  var OPTIMIZER_NAMES = ['Alina', 'Barry', 'Dom', 'Creative', 'Angie', 'Yuly'];
+  var OPTIMIZER_NAMES = ['Alina', 'Barry', 'Dom', 'Creative', 'Angie', 'Yuly', 'Cynthia'];
 
   var OPTIMIZER_RULES = [
     { key: 'Yuly', match: 'yuly' },
@@ -8,6 +8,7 @@
     { key: 'Angie', match: 'angie' },
     { key: 'Dom', match: 'dom' },
     { key: 'Alina', match: 'alina' },
+    { key: 'Cynthia', match: 'cynthia' },
   ];
 
   function formatNumber(n, decimals) {
