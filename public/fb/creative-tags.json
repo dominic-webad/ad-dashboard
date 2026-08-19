@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-11T10:15:28.349Z",
+  "updatedAt": "2026-08-18T07:36:14.693Z",
   "tags": {
     "20260428_JustFit_EN_9x16_FX-Slim_ZT-Fat5_LVL1-typeface_RS-P2X1R2C1_095KB_DHR_FL_JR_RMG-3525Xe": "已改多语言",
     "20260604_JustFit_EN_720x1280_FX-Hidden_ZT-Lazy_LVL1-Real_LVL2-workoutgame_LVL3-Bed_RS-P2X3R1C2_FL_DHR_07A": "已改多语言",
@@ -118,6 +118,27 @@
     "20260608_JustFit_DE_9x16_FX-Coach_ZT-Obese_LVL1-Ai_LVL2-Abdomen_LVL3-Bed_RS-P2X2R3C2_DHR_pingme_ZYL_03A": "DE",
     "20260805_JustFit_FR_720x1280_FX-Coach_ZT-Obese_LVL1-Ai_LVL2-Abdomen_LVL3-Bed_RS-P2X2R1C3_dhr_fl_wzc_WZC_11A": "FR",
     "20260806_JustFit_EN_720x1280_FX-Plan_ZT-Lazy_LVL1-Real_LVL2-Game_LVL3-Bed_RS-P2X3R1C5_DHR_FL_GMX_12A": "已改多语言",
-    "20260806_JustFit_EN_720x1280_FX-POV_ZT-Obese_LVL1-Real_LVL2-Anxiety_LVL3-Bed_RS-P2X3R1C2_FL_DHR_01A": "已改多语言"
+    "20260806_JustFit_EN_720x1280_FX-POV_ZT-Obese_LVL1-Real_LVL2-Anxiety_LVL3-Bed_RS-P2X3R1C2_FL_DHR_01A": "已改多语言",
+    "20260721_JustFit_FR_720x1280_FX-Alter_ZT-Lazy_LVL1-Real_LVL2-Game_LVL3-Bed_RS-P2X3R1C5_DHR_FL_GMX_12A": "FR",
+    "20260721_JustFit_DE_720x1280_FX-Alter_ZT-Lazy_LVL1-Real_LVL2-Game_LVL3-Bed_RS-P2X3R1C5_DHR_FL_GMX_12A": "DE",
+    "202608011_JustFit_EN_720x1280_FX-Hidden_ZT-Obese_LVL1-Filter_LVL2-Game_LVL3-Bed_RS-P2X2R1C2_dhr_fl_dhr_WZC_01A": "已改多语言",
+    "20260805_JustFit_JA_9x16_FX-3DFat_ZT-Obese_LVL1-Ai_LVL2-Goal_LVL3-Bed_RS-P2X1R1C1_DHR_FL_JR_095KB_RMG-7829A": "JP",
+    "20260721_JustFit_PT_720x1280_FX-Alter_ZT-Lazy_LVL1-Real_LVL2-Game_LVL3-Bed_RS-P2X3R1C5_DHR_FL_GMX_12A": "PT",
+    "20260703_JustFit_PT_720x1280_FX-Hidden_ZT-Lazy_LVL1-Real_LVL2-Game_LVL3-Bed_RS-P2X3R1C2_095KB_FL_GMX_03A": "PT",
+    "20260608_JustFit_FR_9x16_FX-Coach_ZT-Obese_LVL1-Ai_LVL2-Abdomen_LVL3-Bed_RS-P2X2R3C2_DHR_pingme_ZYL_03A": "FR",
+    "20260811_JustFit_EN_720x1280_FX-Alter_ZT-Obese_LVL1-Real_LVL2-Goal_LVL3-Bed_RS-P2X3R1C3_FL_DHR_06A": "已改多语言",
+    "20260116_JustFit_ES_720x1280_FX-Plot_ZT-workout_LVL1_typeface_RS-P2X1R1C2_FL_DHR_09B": "ES",
+    "20260722_JustFit_DE_720x1280_FX-Coach_ZT-Obese_LVL1-Ai_LVL2-Abdomen_LVL3-Bed_RS-P2X2R1C3_dhr_fl_wzc_WZC_04A": "DE",
+    "20260112_JustFit_ES_9x16_FX-Slim_ZT-Inonemonth1_LVL1-typeface_RS-P2X1R1C2_DHR_095KB-JL": "ES",
+    "20260703_JustFit_EN_9x16_FX-Hidden_ZT-Lazy_LVL1-Real_LVL2-Game_LVL3-Bed_RS-P2X2R3C5_DHR_ZL_FL_pingme_25A": "已改多语言",
+    "20260803_JustFit_JP_9x16_FX-3DFat_ZT-Obese_LVL1-Ai_LVL2-Abdomen_LVL3-Bed_RS-P2X3R3C2_DHR_ZL_ZL_pingme_21A": "JP",
+    "20260727_JustFit_EN_9x16_FX-Coach_ZT-Obese_LVL1-Ai_LVL2-Waist_LVL3-Bed_RS-P2X2R3C2_SZH_FL_pingme_71A": "已改多语言",
+    "20260803_JustFit_EN_9x16_FX-Interview_ZT-Obese_LVL1-Ai_LVL2-Goal_LVL3-Bed_RS-P2X2R3C2_DHR_YZY_YZYpingme_51A": "已改多语言",
+    "20260811_JustFit_EN_720x1280_FX-Hidden_ZT-Obese_LVL1-Real_LVL2-Game_LVL3-Bed_RS-P2X2R1C2_dhr_fl_WZC_07A": "已改多语言",
+    "20260805_JustFit_EN_720x1280_FX-Alter_ZT-Obese_LVL1-Ai_LVL2-Belly_LVL3-Bed_RS-P2X3R1C2_FL_DHR_DHR_01A": "已改多语言",
+    "20260716_JustFit_DE_720x1280_FX-3DFat_ZT-Obese_LVL1-Ai_LVL2-Abdomen_LVL3-Bed_RS-P2X2R1C3_dhr_fl_wzc_WZC_08A": "DE",
+    "20260812_JustFit_EN_720x1280_FX-Clash_ZT-Obese_LVL1-AI_LVL2-Game_LVL3-Bed_RS-P2X2R1C3_dhr_fl_WZC_02A": "已改多语言",
+    "20260807_JustFit_EN_720x1280_FX-Coach_ZT-Obese_LVL1-Ai_LVL2-Waist_LVL3-Bed_RS-P2X3R1C2_FL_WSJ_DHR_05A": "已改多语言",
+    "20260713_JustFit_PT_720x1280_FX-Alter_ZT-Obese_LVL1-Real_LVL2-Goal_LVL3-Bed_RS-P2X3R1C3_FL_DHR_07A": "PT"
   }
 }
