@@ -67,13 +67,17 @@ function pickField(obj, names) {
   return '';
 }
 
+function isFbReportExcelFile(name) {
+  if (!name || name.startsWith('~$')) return false;
+  return /^Untitled-report_\d{4}\.xlsx$/i.test(name)
+    || /^Untitled-report-[A-Za-z]{3}-\d{1,2}-\d{4}\.xlsx$/i.test(name);
+}
+
 function findExcelFiles(dir) {
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
-    .filter(function (f) {
-      return /^Untitled-report_\d{4}\.xlsx$/i.test(f) && !f.startsWith('~$');
-    })
+    .filter(isFbReportExcelFile)
     .map(function (f) { return path.join(dir, f); })
     .sort();
 }
@@ -299,7 +303,7 @@ function main() {
 
   if (forceFull || !existingState || !existingState.manifest) {
     if (!allExcelFiles.length) {
-      console.error('未在项目根目录找到 Untitled-report_MMDD.xlsx 文件');
+      console.error('未在项目根目录找到 Untitled-report 报表（支持 Untitled-report_MMDD.xlsx 或 Untitled-report-Aug-20-2026.xlsx）');
       process.exit(1);
     }
     filesToProcess = allExcelFiles;
