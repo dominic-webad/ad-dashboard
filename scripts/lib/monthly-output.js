@@ -597,6 +597,36 @@ function ensureNodeHeap(minMb) {
   process.exit(result.status != null ? result.status : 1);
 }
 
+function parseRefreshArgs(argv) {
+  const names = [];
+  let refreshToday = false;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--refresh-today') refreshToday = true;
+    else if (argv[i] === '--refresh' && argv[i + 1]) names.push(argv[++i]);
+  }
+  return { names: names, refreshToday: refreshToday };
+}
+
+function todayIsoLocal() {
+  const d = new Date();
+  return d.getFullYear() + '-'
+    + String(d.getMonth() + 1).padStart(2, '0') + '-'
+    + String(d.getDate()).padStart(2, '0');
+}
+
+function purgeDaysFromAggMap(aggMap, days) {
+  const daySet = days instanceof Set ? days : new Set([].concat(days || []));
+  if (!daySet.size) return 0;
+  let removed = 0;
+  aggMap.forEach(function (rec, key) {
+    if (daySet.has(rec.day)) {
+      aggMap.delete(key);
+      removed += 1;
+    }
+  });
+  return removed;
+}
+
 module.exports = {
   WEEK_DAYS: WEEK_DAYS,
   monthIdFromDay: monthIdFromDay,
@@ -613,4 +643,7 @@ module.exports = {
   ensureNodeHeap: ensureNodeHeap,
   isDataChunkRelativePath: isDataChunkRelativePath,
   partIdsFromDays: partIdsFromDays,
+  parseRefreshArgs: parseRefreshArgs,
+  todayIsoLocal: todayIsoLocal,
+  purgeDaysFromAggMap: purgeDaysFromAggMap,
 };

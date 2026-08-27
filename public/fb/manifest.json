@@ -1,6 +1,6 @@
 {
   "platform": "fb",
-  "generatedAt": "2026-08-27T01:07:57.823Z",
+  "generatedAt": "2026-08-27T01:56:51.482Z",
   "defaultMonth": "2026-08",
   "chunkDays": 7,
   "sourceFiles": [
@@ -207,7 +207,7 @@
         "min": "2026-08-01",
         "max": "2026-08-26"
       },
-      "totalRecords": 1845873,
+      "totalRecords": 1896811,
       "parts": [
         {
           "id": "2026-08/01-07",
@@ -243,7 +243,7 @@
             "min": "2026-08-22",
             "max": "2026-08-26"
           },
-          "totalRecords": 228416
+          "totalRecords": 279354
         }
       ]
     }

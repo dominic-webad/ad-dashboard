@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
-const { writeAggMapMonthlyOutput, loadExistingForIncremental, ensureNodeHeap } = require('./lib/monthly-output');
+const { writeAggMapMonthlyOutput, loadExistingForIncremental, ensureNodeHeap, parseRefreshArgs, todayIsoLocal, purgeDaysFromAggMap } = require('./lib/monthly-output');
 
 const ROOT = path.join(__dirname, '..');
 const DATA_DIR = ROOT;
@@ -230,6 +230,51 @@ function applovinAggRecordToItem(r) {
   };
 }
 
+function collectDaysFromCsvRows(rows) {
+  const days = new Set();
+  for (const obj of rows) {
+    const day = normalizeDay(pickField(obj, ['Date', 'Day']));
+    if (day) days.add(day);
+  }
+  return days;
+}
+
+function resolveRefreshCsvPaths(allCsvFiles, refreshArgs) {
+  const wantNames = new Set(refreshArgs.names.map(function (n) { return path.basename(n); }));
+  if (refreshArgs.refreshToday) {
+    const prefix = 'report_' + todayIsoLocal() + '_';
+    allCsvFiles.forEach(function (f) {
+      const base = path.basename(f);
+      if (base.startsWith(prefix)) wantNames.add(base);
+    });
+  }
+  const byName = new Map();
+  allCsvFiles.forEach(function (f) { byName.set(path.basename(f), f); });
+  const paths = [];
+  wantNames.forEach(function (name) {
+    if (byName.has(name)) paths.push(byName.get(name));
+    else console.warn('刷新目标不存在，已跳过: ' + name);
+  });
+  return paths;
+}
+
+function prepareRefreshFiles(refreshPaths, aggMap, sourceFiles, filesToProcess, touchedDays) {
+  if (!refreshPaths.length) return;
+  console.log('刷新模式: 重新导入 ' + refreshPaths.length + ' 个 CSV 文件');
+  refreshPaths.forEach(function (filePath) {
+    const base = path.basename(filePath);
+    const days = collectDaysFromCsvRows(readCsvRows(filePath).rows);
+    const removed = purgeDaysFromAggMap(aggMap, days);
+    console.log('  清除 ' + base + ' 旧数据 ' + removed + ' 条（日期: ' + Array.from(days).sort().join(', ') + '）');
+    const idx = sourceFiles.indexOf(base);
+    if (idx >= 0) sourceFiles.splice(idx, 1);
+    if (!filesToProcess.some(function (f) { return path.basename(f) === base; })) {
+      filesToProcess.push(filePath);
+    }
+    if (touchedDays) days.forEach(function (day) { touchedDays.add(day); });
+  });
+}
+
 function dateRangeFromManifest(manifest) {
   let min = '';
   let max = '';
@@ -243,6 +288,7 @@ function dateRangeFromManifest(manifest) {
 function main() {
   ensureNodeHeap();
   const forceFull = process.argv.includes('--full');
+  const refreshArgs = parseRefreshArgs(process.argv.slice(2));
   const allCsvFiles = findCsvFiles(DATA_DIR);
   const existingState = forceFull ? null : loadExistingForIncremental(OUT_DIR, ingestCompactRowIntoAggMap);
 
@@ -267,6 +313,16 @@ function main() {
       return !processed.has(path.basename(f));
     });
     sourceFiles = (existingState.manifest.sourceFiles || []).slice();
+    aggMap = existingState.aggMap;
+    existingManifest = existingState.manifest;
+
+    prepareRefreshFiles(
+      resolveRefreshCsvPaths(allCsvFiles, refreshArgs),
+      aggMap,
+      sourceFiles,
+      filesToProcess,
+      touchedDays
+    );
 
     if (!filesToProcess.length) {
       console.log('没有新的 CSV 文件，数据未变更');
@@ -274,12 +330,11 @@ function main() {
       process.exit(0);
     }
 
-    aggMap = existingState.aggMap;
-    existingManifest = existingState.manifest;
     filesToProcess.forEach(function (f) {
-      sourceFiles.push(path.basename(f));
+      const base = path.basename(f);
+      if (sourceFiles.indexOf(base) < 0) sourceFiles.push(base);
     });
-    console.log('增量更新: 已有 ' + aggMap.size + ' 条，新增 ' + filesToProcess.length + ' 个 CSV');
+    console.log('增量更新: 已有 ' + aggMap.size + ' 条，处理 ' + filesToProcess.length + ' 个 CSV');
   }
 
   console.log('处理 ' + filesToProcess.length + ' 个 CSV 文件:');
