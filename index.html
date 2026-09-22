@@ -490,14 +490,14 @@
                   <span class="col-selectable">国家</span>
                   <span>花费</span>
                   <span>ROAS</span>
-                  <span v-if="isApplovin" class="col-trend">趋势</span>
+                  <span v-if="platformConfig.detailModal.supportsCountry" class="col-trend">趋势</span>
                 </div>
                 <div v-if="!countryTiers.t1.length" class="country-tier-empty">暂无数据</div>
-                <div v-for="c in countryTiers.t1" :key="c.country" class="country-tier-item" :class="{ 'has-trend': isApplovin }">
+                <div v-for="c in countryTiers.t1" :key="c.country" class="country-tier-item" :class="{ 'has-trend': platformConfig.detailModal.supportsCountry }">
                   <span class="country-code">{{ c.country }}</span>
                   <span class="country-spend">{{ formatCurrencyInteger(c.spend) }}</span>
                   <span class="country-roas" :class="roasClass(c.roas)">{{ formatNumber(c.roas, 2) }}</span>
-                  <span v-if="isApplovin" class="country-trend"><button type="button" class="btn-detail" @click="openCountryDetail(c)">每日趋势</button></span>
+                  <span v-if="platformConfig.detailModal.supportsCountry" class="country-trend"><button type="button" class="btn-detail" @click="openCountryDetail(c)">每日趋势</button></span>
                 </div>
               </div>
             </div>
@@ -511,14 +511,14 @@
                   <span class="col-selectable">国家</span>
                   <span>花费</span>
                   <span>ROAS</span>
-                  <span v-if="isApplovin" class="col-trend">趋势</span>
+                  <span v-if="platformConfig.detailModal.supportsCountry" class="col-trend">趋势</span>
                 </div>
                 <div v-if="!countryTiers.t2.length" class="country-tier-empty">暂无数据</div>
-                <div v-for="c in countryTiers.t2" :key="c.country" class="country-tier-item" :class="{ 'has-trend': isApplovin }">
+                <div v-for="c in countryTiers.t2" :key="c.country" class="country-tier-item" :class="{ 'has-trend': platformConfig.detailModal.supportsCountry }">
                   <span class="country-code">{{ c.country }}</span>
                   <span class="country-spend">{{ formatCurrencyInteger(c.spend) }}</span>
                   <span class="country-roas" :class="roasClass(c.roas)">{{ formatNumber(c.roas, 2) }}</span>
-                  <span v-if="isApplovin" class="country-trend"><button type="button" class="btn-detail" @click="openCountryDetail(c)">每日趋势</button></span>
+                  <span v-if="platformConfig.detailModal.supportsCountry" class="country-trend"><button type="button" class="btn-detail" @click="openCountryDetail(c)">每日趋势</button></span>
                 </div>
               </div>
             </div>
@@ -532,14 +532,14 @@
                   <span class="col-selectable">国家</span>
                   <span>花费</span>
                   <span>ROAS</span>
-                  <span v-if="isApplovin" class="col-trend">趋势</span>
+                  <span v-if="platformConfig.detailModal.supportsCountry" class="col-trend">趋势</span>
                 </div>
                 <div v-if="!countryTiers.t3.length" class="country-tier-empty">暂无数据</div>
-                <div v-for="c in countryTiers.t3" :key="c.country" class="country-tier-item" :class="{ 'has-trend': isApplovin }">
+                <div v-for="c in countryTiers.t3" :key="c.country" class="country-tier-item" :class="{ 'has-trend': platformConfig.detailModal.supportsCountry }">
                   <span class="country-code">{{ c.country }}</span>
                   <span class="country-spend">{{ formatCurrencyInteger(c.spend) }}</span>
                   <span class="country-roas" :class="roasClass(c.roas)">{{ formatNumber(c.roas, 2) }}</span>
-                  <span v-if="isApplovin" class="country-trend"><button type="button" class="btn-detail" @click="openCountryDetail(c)">每日趋势</button></span>
+                  <span v-if="platformConfig.detailModal.supportsCountry" class="country-trend"><button type="button" class="btn-detail" @click="openCountryDetail(c)">每日趋势</button></span>
                 </div>
               </div>
             </div>

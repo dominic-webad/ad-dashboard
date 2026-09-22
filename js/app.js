@@ -1403,9 +1403,7 @@
         var raw = [];
         if (detailModal.value.type === 'country' && detailModal.value.country) {
           raw = store.value.getCountryDailySeries(detailModal.value.country, f);
-          if (platformConfig.value.detailModal.trendDaysFixed) {
-            return U.fillLastNDaysSeries(raw, getYesterdayIso(), DETAIL_TREND_DAYS);
-          }
+          return U.fillLastNDaysSeries(raw, getYesterdayIso(), DETAIL_TREND_DAYS);
         } else if (detailModal.value.creative) {
           raw = store.value.getCreativeDailySeries(detailModal.value.creative, f);
         }

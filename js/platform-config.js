@@ -11,7 +11,7 @@
       funnelDim: 'account',
       funnelKpiCount: 6,
       headCreative: { minSpend: 1000, minRoas: 0.3 },
-      detailModal: { supportsCountry: false, trendDaysFixed: false },
+      detailModal: { supportsCountry: true, trendDaysFixed: false },
       convertHint: 'node scripts/convert-xlsx.js',
     },
     applovin: {
