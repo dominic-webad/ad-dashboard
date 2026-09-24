@@ -705,7 +705,7 @@
 
       function isMaleAccount(accountName) {
         if (!accountName) return false;
-        return /male$/i.test(String(accountName).trim());
+        return /_(?:male|agcci)$/i.test(String(accountName).trim());
       }
 
       function getSelectedLandingPages() {
