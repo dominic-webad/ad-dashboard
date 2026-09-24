@@ -736,12 +736,19 @@
         return base;
       }
 
+      function getAllowedOptimizers(user) {
+        if (!user || user.role === 'admin') return [];
+        if (Array.isArray(user.allowedOptimizers) && user.allowedOptimizers.length) {
+          return user.allowedOptimizers.slice();
+        }
+        return [user.optimizer, 'Creative'];
+      }
+
       function applyOptimizerScope(f) {
         if (!authUser.value || authUser.value.role === 'admin') return f;
         if (!platformConfig.value.filters.showOptimizer) return f;
 
-        var selfOpt = authUser.value.optimizer;
-        var allowed = [selfOpt, 'Creative'];
+        var allowed = getAllowedOptimizers(authUser.value);
         var selected = f.optimizer || '';
 
         if (selected) {
@@ -859,17 +866,23 @@
         if (!authUser.value || isApplovin.value) return '';
         if (authUser.value.role === 'admin') return '全部数据';
         var selected = filters.value.optimizer;
-        if (selected === 'Creative') return 'Creative';
         if (selected === authUser.value.optimizer) return authUser.value.displayName;
-        return authUser.value.displayName + ' + Creative';
+        if (selected) return selected;
+        return getAllowedOptimizers(authUser.value).join(' + ');
       });
 
       var visibleOptimizers = computed(function () {
         var list = meta.value.optimizers || [];
         if (!authUser.value || authUser.value.role === 'admin' || isApplovin.value) return list;
+        var allowed = getAllowedOptimizers(authUser.value);
         return list.filter(function (o) {
-          return o === authUser.value.optimizer || o === 'Creative';
+          return allowed.indexOf(o) >= 0;
         });
+      });
+
+      var optimizerScopeLabel = computed(function () {
+        if (!authUser.value || authUser.value.role === 'admin' || isApplovin.value) return '全部优化师';
+        return getAllowedOptimizers(authUser.value).join(' + ');
       });
 
       var latestDay = computed(function () {
@@ -2696,6 +2709,7 @@
         loginError: loginError,
         protectedScopeHint: protectedScopeHint,
         visibleOptimizers: visibleOptimizers,
+        optimizerScopeLabel: optimizerScopeLabel,
         potentialHintRoas: potentialHintRoas,
         openLoginModal: openLoginModal,
         closeLoginModal: closeLoginModal,

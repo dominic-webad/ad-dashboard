@@ -8,7 +8,13 @@
     barry: { username: 'barry', role: 'optimizer', optimizer: 'Barry', displayName: 'Barry' },
     angie: { username: 'angie', role: 'optimizer', optimizer: 'Angie', displayName: 'Angie' },
     dom: { username: 'dom', role: 'optimizer', optimizer: 'Dom', displayName: 'Dom' },
-    yuly: { username: 'yuly', role: 'optimizer', optimizer: 'Yuly', displayName: 'Yuly' },
+    yuly: {
+      username: 'yuly',
+      role: 'optimizer',
+      optimizer: 'Yuly',
+      displayName: 'Yuly',
+      allowedOptimizers: ['Yuly', 'Creative', 'agcci'],
+    },
     cynthia: { username: 'cynthia', role: 'optimizer', optimizer: 'Cynthia', displayName: 'Cynthia' },
   };
 
